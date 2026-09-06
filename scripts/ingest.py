@@ -269,6 +269,8 @@ def main():
     ap.add_argument("--retry-missing", action="store_true", help="try files previously recorded as missing")
     ap.add_argument("--since", default=FIRST_TS, help="ignore files before this YYYYMMDDHHMMSS")
     ap.add_argument("--until", default="99999999999999", help="ignore files after this YYYYMMDDHHMMSS")
+    ap.add_argument("--archive-only", action="store_true",
+                    help="write extracts to R2 for files already in the database (after a --no-r2 run); no inserts")
     args = ap.parse_args()
     use_r2 = not args.no_r2
     if use_r2:
@@ -293,6 +295,10 @@ def main():
 
     done = done_files()
     skip = {ts for ts, status in done.items() if status == "ok" or not args.retry_missing}
+    if args.archive_only:
+        if not use_r2:
+            ap.error("--archive-only needs R2")
+        skip = set()
     queue = sorted((ts for ts in todo if ts not in skip and args.since <= ts <= args.until), reverse=not args.oldest_first)
     if args.max_files:
         queue = queue[: args.max_files]
@@ -317,7 +323,8 @@ def main():
                     counts["error"] += 1
                     print(f"{ts} ERROR {type(e).__name__}: {e}", file=sys.stderr, flush=True)
                     continue
-                batch.add(ts, status, tsv, size)
+                if not args.archive_only:
+                    batch.add(ts, status, tsv, size)
                 counts[status] += 1
                 total_rows += tsv.count("\n")
             n = min(start + 240, len(queue))

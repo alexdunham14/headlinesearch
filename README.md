@@ -8,10 +8,13 @@ turned up in the news, or what a particular outlet headlined that week.
 
 ## Definition of done
 
-- A page with one search box, a word/substring toggle, a date range, an
-  optional domain, and a plain list of results: date, headline, domain, link.
-  Identical headlines within a result page collapse into one line with a count.
-  The URL carries the query so a search can be linked to.
+- A page with one search box, a word/substring toggle, a newest/oldest-first
+  toggle, a date range, an optional domain, and a plain list of results: date,
+  headline, domain, link, with the matched words marked. Identical headlines
+  within a result page collapse into one line with a count. A source or a
+  month in the count can be clicked to narrow the search. The page says what
+  is loaded (first and last day, row count). The URL carries the query so a
+  search can be linked to.
 - Search covers the whole corpus (English-language GKG files, 2019-10-01 to
   yesterday) and answers in a few seconds at worst. Word search matches whole
   words, case-insensitive; substring search matches any run of characters.
@@ -47,12 +50,16 @@ Three pieces, in three places.
    substring queries. A read-only `search` user with a quota, reachable only
    from the Worker. `server/setup.sh` turns a fresh Debian box into this.
 3. **The site** on Cloudflare Workers: `index.html`, `styles.css`, `app.js`
-   as static assets, and `worker.js` for `/api/search` and `/api/count`, which
-   validate the parameters, build a parameterised ClickHouse query, cache the
-   answer at the edge (an hour for searches, a day for counts) and rate-limit
-   by IP (30 a minute).
+   as static assets, and `worker.js` for `/api/search`, `/api/count` and
+   `/api/stats`, which validate the parameters, build a parameterised
+   ClickHouse query, cache the answer at the edge (an hour for searches and
+   stats, a day for counts) and rate-limit by IP (30 a minute).
 
-Search returns the newest 100 matches, paged with `page=`, up to 50 pages.
+Search returns 100 matches, newest first or oldest first (`sort=oldest`),
+paged with `page=`, up to 50 pages. Either direction reads from its end of
+the table and stops at the limit, so they cost the same. Stats is the first
+and last timestamp and the row count, which the page shows so nobody
+searches for 2020 while only 2025 is loaded.
 Count returns matches per month and is a full scan for anything but rare
 terms: it runs with a 20 second budget and says so when it ran out. Both
 modes lower-case the query.

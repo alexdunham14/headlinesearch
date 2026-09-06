@@ -1,7 +1,7 @@
-// /api/search and /api/count: validate the query string, build one of two
-// fixed ClickHouse queries with bound parameters, run it as the read-only
-// `search` user, cache the answer at the edge. Everything else is a static
-// asset. Nothing a visitor sends ever reaches ClickHouse as SQL.
+// /api/search, /api/count and /api/stats: validate the query string, build
+// one of three fixed ClickHouse queries with bound parameters, run it as the
+// read-only `search` user, cache the answer at the edge. Everything else is a
+// static asset. Nothing a visitor sends ever reaches ClickHouse as SQL.
 //
 // Secrets: CH_URL (e.g. http://1.2.3.4:8123), CH_PASSWORD. Binding:
 // SEARCH_LIMIT (rate limit per IP, see wrangler.jsonc).
@@ -13,8 +13,9 @@ const FIRST_DAY = "2019-10-01";
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    if (url.pathname !== "/api/search" && url.pathname !== "/api/count") return env.ASSETS.fetch(request);
+    if (!["/api/search", "/api/count", "/api/stats"].includes(url.pathname)) return env.ASSETS.fetch(request);
     if (request.method !== "GET") return json({ error: "GET only" }, 405);
+    if (url.pathname === "/api/stats") return stats(env, ctx, url);
 
     let q;
     try {
@@ -46,6 +47,26 @@ export default {
   },
 };
 
+// What is loaded: first and last timestamp and the row count. Takes no
+// parameters, so one cache entry for everyone, an hour at a time.
+async function stats(env, ctx, url) {
+  const key = new Request(`${url.origin}/api/stats`);
+  const cache = caches.default;
+  const hit = await cache.match(key);
+  if (hit) return hit;
+  let body;
+  try {
+    const r = await clickhouse(env, "SELECT min(ts) AS first, max(ts) AS last, count() AS rows FROM headlines FORMAT JSON", {}, { max_execution_time: 10 });
+    const x = r.data[0];
+    body = { first: x.first, last: x.last, rows: Number(x.rows) };
+  } catch (e) {
+    return json({ error: e.message }, 502);
+  }
+  const res = json(body, 200, "public, max-age=3600");
+  ctx.waitUntil(cache.put(key, res.clone()));
+  return res;
+}
+
 // ---------------------------------------------------------------- parsing
 
 function parse(p) {
@@ -62,7 +83,8 @@ function parse(p) {
   const domain = (p.get("domain") || "").trim().toLowerCase();
   if (domain.length > 100 || /[^a-z0-9.-]/.test(domain)) throw new Error("domain looks wrong");
   const page = Math.min(Math.max(parseInt(p.get("page") || "1", 10) || 1, 1), MAX_OFFSET / PAGE);
-  return { q, mode, words, from, to, domain, page };
+  const sort = p.get("sort") === "oldest" ? "oldest" : "newest";
+  return { q, mode, words, from, to, domain, page, sort };
 }
 
 function day(s, fallback) {
@@ -72,7 +94,7 @@ function day(s, fallback) {
 }
 
 function canonical(q) {
-  return new URLSearchParams({ q: q.q, mode: q.mode, from: q.from, to: q.to, domain: q.domain, page: q.page }).toString();
+  return new URLSearchParams({ q: q.q, mode: q.mode, from: q.from, to: q.to, domain: q.domain, page: q.page, sort: q.sort }).toString();
 }
 
 // ----------------------------------------------------------------- queries
@@ -108,8 +130,11 @@ function where(q, params) {
 
 async function runSearch(env, q) {
   const params = { limit: PAGE, offset: (q.page - 1) * PAGE };
+  // Oldest-first reads the earliest granules first and stops at the limit just
+  // as newest-first does, so it costs the same; it is how you find when a
+  // phrase first turned up.
   const sql = `SELECT ts, domain, url, title FROM headlines WHERE ${where(q, params)}
-    ORDER BY ts DESC LIMIT {limit:UInt32} OFFSET {offset:UInt32} FORMAT JSON`;
+    ORDER BY ts ${q.sort === "oldest" ? "ASC" : "DESC"} LIMIT {limit:UInt32} OFFSET {offset:UInt32} FORMAT JSON`;
   const r = await clickhouse(env, sql, params, { max_execution_time: 10 });
   return { rows: r.data, elapsed: r.statistics.elapsed, timedOut: r.statistics.elapsed >= 10 };
 }

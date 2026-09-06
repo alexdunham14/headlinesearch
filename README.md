@@ -95,8 +95,8 @@ through a Cloudflare quick tunnel, for demos before there is a server.
 ## Hosting
 
 Cloudflare Workers static assets plus a fetch handler (`wrangler.jsonc`).
-Pushes to main deploy via GitHub Actions using the `CLOUDFLARE_API_TOKEN` and
-`CLOUDFLARE_ACCOUNT_ID` repository secrets. The Worker needs two secrets of its
+Deploy by hand with `wrangler deploy` from a checkout. The GitHub Actions deploy was removed on 2026-09-06 because the `CLOUDFLARE_API_TOKEN` secret is not set and every push failed; put it back (cloudflare/wrangler-action with the token and `CLOUDFLARE_ACCOUNT_ID`) once the token exists.
+The Worker needs two secrets of its
 own: `CH_URL` (the ClickHouse HTTP endpoint) and `CH_PASSWORD` (the `search`
 user's password), set with `wrangler secret put`.
 

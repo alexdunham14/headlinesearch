@@ -1,0 +1,19 @@
+body { max-width: 60rem; margin: 1.5rem auto; padding: 0 1rem; font: 1rem/1.5 Georgia, "Times New Roman", serif; color: #1a1a1a; background: #fff; }
+@media (prefers-color-scheme: dark) { body { color: #e6e6e6; background: #141414; } a { color: #9cc4ff; } }
+h1 { font-weight: normal; font-size: 1.9rem; margin: 0 0 .4rem; }
+form { margin: 1rem 0; line-height: 2.2; }
+input, button, select { font: inherit; }
+#q { width: 60%; max-width: 30rem; }
+label { margin-right: .8rem; white-space: nowrap; }
+table { border-collapse: collapse; width: 100%; font-size: .95rem; }
+td { padding: .25rem .6rem .25rem 0; vertical-align: top; }
+td.when { white-space: nowrap; color: #555; }
+td.src { color: #555; white-space: nowrap; }
+td.title a { color: inherit; }
+.n { color: #888; font-size: .85em; }
+#months table { width: auto; }
+#months td.bar { padding-left: 0; }
+#months td.bar span { display: inline-block; height: .8em; background: #999; vertical-align: middle; }
+#status, #more, #meta, .none { color: #666; font-size: .9rem; }
+#more a { cursor: pointer; }
+@media (prefers-color-scheme: dark) { td.when, td.src, #status, #more, #meta, .none { color: #999; } }

@@ -1,0 +1,23 @@
+<!-- Server settings for a small box (4 to 8 GB). Installed by setup.sh as
+     /etc/clickhouse-server/config.d/headlinesearch.xml. Listens on all
+     interfaces: the firewall (setup.sh) admits port 8123 from Cloudflare only. -->
+<clickhouse>
+  <listen_host>0.0.0.0</listen_host>
+  <listen_host>::</listen_host>
+  <http_port>8123</http_port>
+  <tcp_port>9000</tcp_port>
+  <max_server_memory_usage_to_ram_ratio>0.7</max_server_memory_usage_to_ram_ratio>
+  <mark_cache_size>268435456</mark_cache_size>
+  <uncompressed_cache_size>0</uncompressed_cache_size>
+  <background_pool_size>2</background_pool_size>
+  <background_schedule_pool_size>4</background_schedule_pool_size>
+  <max_connections>256</max_connections>
+  <max_concurrent_queries>16</max_concurrent_queries>
+  <query_log><ttl>event_date + INTERVAL 14 DAY</ttl></query_log>
+  <trace_log remove="1"/>
+  <metric_log remove="1"/>
+  <asynchronous_metric_log remove="1"/>
+  <part_log remove="1"/>
+  <text_log remove="1"/>
+  <processors_profile_log remove="1"/>
+</clickhouse>

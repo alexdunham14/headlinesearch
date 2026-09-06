@@ -1,0 +1,31 @@
+#!/bin/sh
+# Start a local ClickHouse server with its data in $HEADLINES_DATA (default
+# ~/.local/share/headlinesearch; kept out of the repo so wrangler dev's file
+# watcher does not reload on every write). Downloads the single static
+# binary the first time. Stop it with: kill $(cat ~/.local/share/headlinesearch/pid)
+set -e
+cd "$(dirname "$0")/.."
+users="$PWD/server/users.xml"
+data="${HEADLINES_DATA:-$HOME/.local/share/headlinesearch}"
+mkdir -p "$data/bin" "$data/db"
+if [ ! -x "$data/bin/clickhouse" ]; then
+  echo "downloading clickhouse..."
+  (cd "$data/bin" && curl -sS https://clickhouse.com/ | sh)
+fi
+cd "$data"
+# Passwords for the three users, generated once. Sourcing this file also
+# points scripts/ingest.py at this server as the ingest user.
+if [ ! -f env ]; then
+  for u in ADMIN SEARCH INGEST; do
+    echo "CH_${u}_PASSWORD=$(head -c 18 /dev/urandom | base64 | tr -d '/+=')" >> env
+  done
+  printf 'CH_URL=http://127.0.0.1:8123\nCH_USER=ingest\nCH_PASSWORD=$CH_INGEST_PASSWORD\n' >> env
+fi
+set -a; . ./env; set +a
+exec bin/clickhouse server -- \
+  --users_config="$users" \
+  --path="$data/db/" --listen_host=127.0.0.1 --http_port=8123 --tcp_port=9000 \
+  --logger.log="$data/server.log" --logger.errorlog="$data/error.log" --logger.console=0 \
+  --max_server_memory_usage_to_ram_ratio=0.6 --memory_worker_use_cgroup=0 \
+  --path_to_regions_names_files= \
+  --pid="$data/pid" "$@"

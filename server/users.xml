@@ -1,0 +1,62 @@
+<!-- ClickHouse users for Headline Search. Used verbatim by scripts/dev-db
+     (passwords from the environment, 'dev' if unset) and installed by
+     server/setup.sh as /etc/clickhouse-server/users.d/headlinesearch.xml.
+
+     search: what the Cloudflare Worker uses. Read-only (readonly=2 lets it
+     pass per-query settings, the constraints below cap them), a few seconds
+     of CPU per query, a quota per hour.
+     ingest: what scripts/ingest.py uses, from the same box only.
+     default: the admin, local only, password in CH_ADMIN_PASSWORD (setup.sh
+     writes it into root's clickhouse-client config). -->
+<clickhouse>
+  <profiles>
+    <default/>
+    <search>
+      <readonly>2</readonly>
+      <max_execution_time>20</max_execution_time>
+      <max_memory_usage>1000000000</max_memory_usage>
+      <max_result_rows>10000</max_result_rows>
+      <max_result_bytes>20000000</max_result_bytes>
+      <max_threads>4</max_threads>
+      <max_concurrent_queries_for_user>4</max_concurrent_queries_for_user>
+      <constraints>
+        <max_execution_time><max>20</max></max_execution_time>
+        <max_memory_usage><max>1000000000</max></max_memory_usage>
+        <max_result_rows><max>10000</max></max_result_rows>
+        <max_threads><max>4</max></max_threads>
+        <readonly><min>2</min></readonly>
+      </constraints>
+    </search>
+  </profiles>
+  <quotas>
+    <default><interval><duration>3600</duration><queries>0</queries></interval></default>
+    <search>
+      <interval>
+        <duration>3600</duration>
+        <queries>3000</queries>
+        <execution_time>1800</execution_time>
+      </interval>
+    </search>
+  </quotas>
+  <users>
+    <search>
+      <password from_env="CH_SEARCH_PASSWORD"/>
+      <networks><ip>::/0</ip></networks>
+      <profile>search</profile>
+      <quota>search</quota>
+    </search>
+    <ingest>
+      <password from_env="CH_INGEST_PASSWORD"/>
+      <networks><ip>::1</ip><ip>127.0.0.1</ip></networks>
+      <profile>default</profile>
+      <quota>default</quota>
+    </ingest>
+    <default>
+      <password from_env="CH_ADMIN_PASSWORD"/>
+      <networks><ip>::1</ip><ip>127.0.0.1</ip></networks>
+      <profile>default</profile>
+      <quota>default</quota>
+      <access_management>1</access_management>
+    </default>
+  </users>
+</clickhouse>

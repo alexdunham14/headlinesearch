@@ -1,0 +1,11 @@
+.git
+.github
+.gitignore
+.assetsignore
+.wrangler
+.dev.vars
+scripts
+server
+worker.js
+README.md
+wrangler.jsonc

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Headline Search</title>
+<meta name="description" content="Search every news headline GDELT has recorded since October 2019, by word or substring, with a date range and source filter.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<h1>Headline Search</h1>
+<p>Every headline in the <a href="https://www.gdeltproject.org/">GDELT</a> Global Knowledge Graph since October 2019, English-language files, about half a billion of them. Word search matches whole words, in any order. Substring search matches the exact run of characters, so <em>zelensk</em> finds both spellings. Case does not matter.</p>
+
+<form id="f">
+  <input id="q" type="search" placeholder="search headlines" autofocus required minlength="2" maxlength="200">
+  <button>search</button>
+  <br>
+  <label><input type="radio" name="mode" value="word" checked> words</label>
+  <label><input type="radio" name="mode" value="substring"> substring</label>
+  <label>from <input id="from" type="date" min="2019-10-01"></label>
+  <label>to <input id="to" type="date" min="2019-10-01"></label>
+  <label>source <input id="domain" type="text" placeholder="bbc.com" size="14"></label>
+</form>
+
+<p id="status"></p>
+<div id="months"></div>
+<table id="results"></table>
+<p id="more"></p>
+
+<hr>
+<p id="meta">Data is GDELT's, ingested a few times a day, so the last day is always incomplete. Headlines are page titles as GDELT recorded them, site name suffix and all. <span id="stats"></span> <a href="https://github.com/alexdunham14/headlinesearch">Source</a>.</p>
+<script src="app.js"></script>
+</body>
+</html>

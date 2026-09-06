@@ -1,0 +1,5 @@
+.wrangler/
+__pycache__/
+*.log
+.env
+.dev.vars

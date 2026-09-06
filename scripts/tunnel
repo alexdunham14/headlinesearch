@@ -1,0 +1,24 @@
+#!/bin/sh
+# Expose the local dev database to the deployed Worker through a Cloudflare
+# quick tunnel, until there is a real server. The tunnel URL changes every
+# run, so this also updates the Worker's CH_URL and CH_PASSWORD secrets.
+# Anyone who guesses the URL reaches ClickHouse, which is why every user
+# in server/users.xml has a password. Ctrl-C ends it.
+set -e
+cd "$(dirname "$0")/.."
+data="${HEADLINES_DATA:-$HOME/.local/share/headlinesearch}"
+set -a; . "$data/env"; set +a
+[ -x "$data/bin/cloudflared" ] || curl -sSL -o "$data/bin/cloudflared" https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x "$data/bin/cloudflared"
+"$data/bin/cloudflared" tunnel --url http://127.0.0.1:8123 --no-autoupdate > "$data/tunnel.log" 2>&1 &
+pid=$!
+trap 'kill $pid' EXIT INT TERM
+for i in $(seq 1 30); do
+  url=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$data/tunnel.log" | head -1) && [ -n "$url" ] && break
+  sleep 1
+done
+[ -n "$url" ] || { echo "no tunnel url in $data/tunnel.log"; exit 1; }
+echo "tunnel: $url"
+printf '%s' "$url" | wrangler secret put CH_URL
+printf '%s' "$CH_SEARCH_PASSWORD" | wrangler secret put CH_PASSWORD
+echo "worker secrets updated; tunnel stays up until this script exits"
+wait $pid

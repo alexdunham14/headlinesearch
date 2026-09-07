@@ -3,6 +3,11 @@
   "main": "worker.js",
   "compatibility_date": "2026-09-01",
   "assets": { "directory": ".", "not_found_handling": "404-page", "html_handling": "auto-trailing-slash" },
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "newsheadlinesearch.com", "custom_domain": true },
+    { "pattern": "www.newsheadlinesearch.com", "custom_domain": true }
+  ],
   "observability": { "enabled": true },
   "ratelimits": [
     { "name": "SEARCH_LIMIT", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } }

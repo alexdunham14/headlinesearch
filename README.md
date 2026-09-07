@@ -1,5 +1,7 @@
 # Headline Search
 
+Live at https://newsheadlinesearch.com (headlinesearch.alexdunham14.workers.dev also serves it).
+
 Every news headline GDELT has seen since October 2019, searchable by word or by
 substring, with a date range and a source-domain filter. About half a billion
 rows from the GDELT Global Knowledge Graph (GKG), which has carried page titles

@@ -1,14 +1,18 @@
 body { max-width: 60rem; margin: 1.5rem auto; padding: 0 1rem; font: 1rem/1.5 Georgia, "Times New Roman", serif; color: #1a1a1a; background: #fff; }
 @media (prefers-color-scheme: dark) { body { color: #e6e6e6; background: #141414; } a { color: #9cc4ff; } }
 h1 { font-weight: normal; font-size: 1.9rem; margin: 0 0 .4rem; }
-/* Filters: one row per kind, a small label at the left, a rule between rows. */
+/* Filters: one row per kind. A small label in a fixed column on the left, the controls
+   wrapping in a block of their own on the right; on a phone the label sits above the controls. */
 form { margin: 1rem 0; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd; }
-form .row { display: flex; flex-wrap: wrap; gap: .3rem 1rem; align-items: center; padding: .4rem 0; }
-form .row + .row { border-top: 1px dotted #ddd; }
-.rowlabel { flex: 0 0 4.5rem; font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: #777; }
+form .row { display: grid; grid-template-columns: 5rem 1fr; align-items: baseline; padding: .5rem 0; }
+form .row + .row { border-top: 1px solid #eee; }
+.rowlabel { font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: #777; }
+.ctl { display: flex; flex-wrap: wrap; gap: .4rem .9rem; align-items: center; min-width: 0; }
+.ctl label { white-space: nowrap; }
+select { max-width: 100%; }
+@media (max-width: 40rem) { form .row { grid-template-columns: 1fr; row-gap: .3rem; } }
 input, button, select { font: inherit; }
 #q { flex: 1 1 14rem; max-width: 30rem; padding: .2rem .4rem; }
-label { white-space: nowrap; }
 button.clear, .nudge button { font-size: .85rem; padding: .1rem .5rem; border: 1px solid #bbb; border-radius: .25rem; background: transparent; color: inherit; cursor: pointer; }
 button.clear:hover, .nudge button:hover { border-color: #666; }
 .nudge { white-space: nowrap; }
@@ -28,4 +32,4 @@ mark { background: none; color: inherit; font-weight: bold; }
 #months td.bar span { display: inline-block; height: .8em; background: #999; vertical-align: middle; }
 #status, #more, #meta, #examples, .none { color: #666; font-size: .9rem; }
 #more a { cursor: pointer; }
-@media (prefers-color-scheme: dark) { td.when, td.src, #status, #more, #meta, #examples, .none, .rowlabel { color: #999; } form, form .row + .row { border-color: #333; } button.clear, .nudge button { border-color: #555; } }
+@media (prefers-color-scheme: dark) { td.when, td.src, #status, #more, #meta, #examples, .none, .rowlabel { color: #999; } form { border-color: #333; } form .row + .row { border-color: #2a2a2a; } button.clear, .nudge button { border-color: #555; } }

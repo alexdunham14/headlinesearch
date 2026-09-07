@@ -36,7 +36,7 @@
     if (p.get("q").length < 2) return;
     if (page > 1) p.set("page", page);
     if (push) history.pushState(null, "", "?" + p);
-    document.title = `${p.get("q")} · Headline Search`;
+    document.title = `${p.get("q")} - Headline Search`;
     $("examples").hidden = true;
     $("status").textContent = "searching…";
     $("results").innerHTML = "";
@@ -90,7 +90,7 @@
       const span = rows.length > 1 ? `, ${fmtDay(rows[0].ts)} ${oldest ? "forward" : "back"} to ${fmtDay(rows[rows.length - 1].ts)}` : `, ${fmtDay(rows[0].ts)}`;
       $("status").innerHTML = `${rows.length === 100 ? (oldest ? "oldest 100" : "newest 100") : rows.length} result${rows.length === 1 ? "" : "s"}${page > 1 ? ` (page ${page})` : ""}${span}, ${r.elapsed.toFixed(1)}s` +
         (r.timedOut ? " — search hit its time limit; narrow the dates" : "") +
-        (page === 1 ? ` · <a id="count" href="#">count by month</a>` : "");
+        (page === 1 ? `, <a id="count" href="#">count by month</a>` : "");
       if (page === 1) $("count").onclick = e => { e.preventDefault(); count(p); };
     }
     $("results").innerHTML = groups.map(g => `<tr>

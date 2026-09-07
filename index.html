@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Headline Search</title>
-<meta name="description" content="Search news headlines from GDELT's Global Knowledge Graph by word or substring, newest or oldest first, with a date range and source filter.">
+<meta name="description" content="Search news headlines from GDELT's Global Knowledge Graph by word or substring, filterable by date and source.">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <h1>Headline Search</h1>
-<p>News headlines as recorded by the <a href="https://www.gdeltproject.org/">GDELT</a> Global Knowledge Graph, which has logged the title of every English-language article it sees since October 2019, about half a billion so far. <span id="stats">Working out what is loaded…</span></p>
-<p>Word search matches whole words, in any order. Substring search matches the exact run of characters, so <em>zelensk</em> finds both spellings. Case does not matter. Oldest first is how you find when a phrase first turned up in the news.</p>
+<p>Search the headlines of half a billion news articles collected by the <a href="https://www.gdeltproject.org/">GDELT</a> Global Knowledge Graph going back to 2019. <span id="stats">Loading stats . . .</span></p>
+<p>Word search matches whole words, in any order. Substring search matches the exact run of characters. Search is case-insensitive.</p>
 
 <form id="f">
   <div class="row">
@@ -50,7 +50,7 @@
 <p id="more"></p>
 
 <hr>
-<p id="meta">Data is GDELT's, ingested a few times a day, so the last day is always incomplete. Headlines are page titles as GDELT recorded them, site name suffix and all. Click a source to narrow to it, or a month in the count to narrow to that month. <a href="https://github.com/alexdunham14/headlinesearch">Source</a>.</p>
+<p id="meta">Data comes from GDELT and is ingested a few times per day. Headlines are page titles as GDELT recorded them. <a href="https://github.com/alexdunham14/headlinesearch">Source code</a>.</p>
 <script src="app.js"></script>
 </body>
 </html>

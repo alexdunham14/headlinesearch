@@ -13,18 +13,34 @@
 <p>Word search matches whole words, in any order. Substring search matches the exact run of characters, so <em>zelensk</em> finds both spellings. Case does not matter. Oldest first is how you find when a phrase first turned up in the news.</p>
 
 <form id="f">
-  <input id="q" type="search" placeholder="search headlines" autofocus required minlength="2" maxlength="200">
-  <button>search</button>
-  <br>
-  <label><input type="radio" name="mode" value="word" checked> words</label>
-  <label><input type="radio" name="mode" value="substring"> substring</label>
-  <span class="sep"></span>
-  <label><input type="radio" name="sort" value="newest" checked> newest first</label>
-  <label><input type="radio" name="sort" value="oldest"> oldest first</label>
-  <br>
-  <label>from <input id="from" type="date" min="2019-10-01"></label>
-  <label>to <input id="to" type="date" min="2019-10-01"></label>
-  <label>source <input id="domain" type="text" placeholder="bbc.com" size="14"></label>
+  <div class="row">
+    <span class="rowlabel">search</span>
+    <input id="q" type="search" placeholder="search headlines" autofocus required minlength="2" maxlength="200">
+    <button>search</button>
+  </div>
+  <div class="row">
+    <span class="rowlabel">match</span>
+    <label><input type="radio" name="mode" value="word" checked> words</label>
+    <label><input type="radio" name="mode" value="substring"> substring</label>
+  </div>
+  <div class="row">
+    <span class="rowlabel">order</span>
+    <label><input type="radio" name="sort" value="newest" checked> newest first</label>
+    <label><input type="radio" name="sort" value="oldest"> oldest first</label>
+  </div>
+  <div class="row">
+    <span class="rowlabel">dates</span>
+    <label>from <input id="from" type="date" min="2019-10-01"></label>
+    <label>to <input id="to" type="date" min="2019-10-01"></label>
+    <span class="nudge"><button type="button" id="earlier" title="Shift the range back by its own length">&lsaquo; earlier</button> <button type="button" id="later" title="Shift the range forward by its own length">later &rsaquo;</button></span>
+    <button type="button" id="clear-dates" class="clear" title="All dates">clear</button>
+    <span class="presets" id="presets"><a href="#" data-preset="7">last 7 days</a> <a href="#" data-preset="30">last 30 days</a> <a href="#" data-preset="365">last year</a></span>
+  </div>
+  <div class="row">
+    <span class="rowlabel">source</span>
+    <input id="domain" type="text" placeholder="bbc.com" size="14" aria-label="Source domain">
+    <button type="button" id="clear-domain" class="clear" title="Any source">clear</button>
+  </div>
 </form>
 
 <p id="examples">Try: <a href="?q=ceasefire">ceasefire</a>, <a href="?q=climate+change">climate change</a>, <a href="?q=zelensk&amp;mode=substring">zelensk (substring)</a>, <a href="?q=election&amp;domain=bbc.com">election on bbc.com</a>, <a href="?q=tariff&amp;sort=oldest">tariff, oldest first</a>.</p>

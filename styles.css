@@ -1,11 +1,19 @@
 body { max-width: 60rem; margin: 1.5rem auto; padding: 0 1rem; font: 1rem/1.5 Georgia, "Times New Roman", serif; color: #1a1a1a; background: #fff; }
 @media (prefers-color-scheme: dark) { body { color: #e6e6e6; background: #141414; } a { color: #9cc4ff; } }
 h1 { font-weight: normal; font-size: 1.9rem; margin: 0 0 .4rem; }
-form { margin: 1rem 0; line-height: 2.2; }
+/* Filters: one row per kind, a small label at the left, a rule between rows. */
+form { margin: 1rem 0; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd; }
+form .row { display: flex; flex-wrap: wrap; gap: .3rem 1rem; align-items: center; padding: .4rem 0; }
+form .row + .row { border-top: 1px dotted #ddd; }
+.rowlabel { flex: 0 0 4.5rem; font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: #777; }
 input, button, select { font: inherit; }
-#q { width: 60%; max-width: 30rem; }
-label { margin-right: .8rem; white-space: nowrap; }
-.sep { display: inline-block; width: 1rem; }
+#q { flex: 1 1 14rem; max-width: 30rem; padding: .2rem .4rem; }
+label { white-space: nowrap; }
+button.clear, .nudge button { font-size: .85rem; padding: .1rem .5rem; border: 1px solid #bbb; border-radius: .25rem; background: transparent; color: inherit; cursor: pointer; }
+button.clear:hover, .nudge button:hover { border-color: #666; }
+.nudge { white-space: nowrap; }
+.presets { font-size: .9rem; }
+.presets a { margin-right: .6rem; }
 table { border-collapse: collapse; width: 100%; font-size: .95rem; }
 td { padding: .25rem .6rem .25rem 0; vertical-align: top; }
 td.when { white-space: nowrap; color: #555; }
@@ -20,4 +28,4 @@ mark { background: none; color: inherit; font-weight: bold; }
 #months td.bar span { display: inline-block; height: .8em; background: #999; vertical-align: middle; }
 #status, #more, #meta, #examples, .none { color: #666; font-size: .9rem; }
 #more a { cursor: pointer; }
-@media (prefers-color-scheme: dark) { td.when, td.src, #status, #more, #meta, #examples, .none { color: #999; } }
+@media (prefers-color-scheme: dark) { td.when, td.src, #status, #more, #meta, #examples, .none, .rowlabel { color: #999; } form, form .row + .row { border-color: #333; } button.clear, .nudge button { border-color: #555; } }

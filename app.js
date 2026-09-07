@@ -27,6 +27,7 @@
     $("to").value = p.get("to") || "";
     $("domain").value = p.get("domain") || "";
     page = Math.max(1, parseInt(p.get("page") || "1", 10) || 1);
+    if (typeof linkDates === "function") linkDates();
     return true;
   }
 
@@ -137,8 +138,37 @@
     const n = s.rows >= 1e9 ? `${(s.rows / 1e9).toFixed(1)} billion` : s.rows >= 1e6 ? `${(s.rows / 1e6).toFixed(1)} million` : s.rows.toLocaleString();
     const early = first > "2019-10-02" ? "; earlier years are still being loaded" : "";
     $("stats").textContent = `Loaded so far: ${n} headlines, ${fmtDay(first)} to ${fmtDay(last)}${early}.`;
-    $("from").min = $("to").min = first; $("from").max = $("to").max = last;
+    $("from").min = $("to").min = first; $("from").max = $("to").max = last; linkDates();
   }).catch(() => { $("stats").textContent = "Could not reach the database just now."; });
+
+  // Dates: "to" cannot precede "from" (fixing one side moves the other), both bounded to what
+  // is loaded once /api/stats answers; clear, presets, and shifting the range by its own length.
+  const day = d => d.toISOString().slice(0, 10);
+  const plus = (s, n) => { const d = new Date(s + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return day(d); };
+  function linkDates(changed) {
+    const f = $("from"), t = $("to");
+    if (f.value && t.value && t.value < f.value) { if (changed === "from") t.value = f.value; else f.value = t.value; }
+    t.min = f.value || f.min; f.max = t.value || t.max || "";
+  }
+  const go = () => { linkDates(); if ($("q").value.trim().length >= 2) { page = 1; search(true); } };
+  $("from").addEventListener("change", () => { linkDates("from"); go(); });
+  $("to").addEventListener("change", () => { linkDates("to"); go(); });
+  $("clear-dates").onclick = () => { $("from").value = ""; $("to").value = ""; go(); };
+  $("clear-domain").onclick = () => { $("domain").value = ""; go(); };
+  const shift = dir => {
+    const f = $("from").value || $("from").min, t = $("to").value || $("to").max || day(new Date());
+    if (!f) return;
+    const len = Math.round((new Date(t) - new Date(f)) / 864e5) + 1;
+    $("from").value = plus(f, dir * len); $("to").value = plus(t, dir * len); go();
+  };
+  $("earlier").onclick = () => shift(-1);
+  $("later").onclick = () => shift(1);
+  $("presets").addEventListener("click", ev => {
+    const a = ev.target.closest("a[data-preset]"); if (!a) return;
+    ev.preventDefault();
+    const last = $("to").max || day(new Date());
+    $("from").value = plus(last, -(Number(a.dataset.preset) - 1)); $("to").value = last; go();
+  });
 
   form.onsubmit = e => { e.preventDefault(); page = 1; search(true); };
   window.onpopstate = () => { if (fromUrl()) search(false); else { $("examples").hidden = false; $("status").textContent = ""; $("results").innerHTML = ""; $("more").innerHTML = ""; $("months").innerHTML = ""; document.title = "Headline Search"; } };

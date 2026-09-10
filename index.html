@@ -9,59 +9,67 @@
 </head>
 <body>
 <h1>Headline Search</h1>
-<p>Search the headlines of half a billion news articles collected by the <a href="https://www.gdeltproject.org/">GDELT</a> Global Knowledge Graph going back to 2019. <span id="stats">Loading stats . . .</span></p>
-<p>Word search matches whole words, in any order. Substring search matches the exact run of characters. Search is case-insensitive.</p>
+<p class="lede">Search the headlines of half a billion news articles collected by the <a href="https://www.gdeltproject.org/">GDELT</a> Global Knowledge Graph going back to 2019. <span id="stats"></span></p>
 
 <noscript><p>Search needs JavaScript; results come from a database behind this page.</p></noscript>
-<form id="f">
-  <div class="row">
-    <span class="rowlabel">search</span>
-    <div class="ctl">
-      <input id="q" type="search" placeholder="search headlines" autofocus required minlength="2" maxlength="200">
-      <button>search</button>
+<form id="f" class="panel" role="search">
+  <div class="q">
+    <input id="q" type="search" placeholder="search headlines" autofocus required minlength="2" maxlength="200" aria-label="Search headlines">
+    <button type="submit" class="go">Search</button>
+  </div>
+  <div class="opts">
+    <div class="group" role="group" aria-label="Match">
+      <span class="lbl">match</span>
+      <span class="seg">
+        <label><input type="radio" name="mode" value="word" checked><span>whole words</span></label>
+        <label><input type="radio" name="mode" value="substring"><span>substring</span></label>
+      </span>
+    </div>
+    <div class="group" role="group" aria-label="Order">
+      <span class="lbl">order</span>
+      <span class="seg">
+        <label><input type="radio" name="sort" value="newest" checked><span>newest first</span></label>
+        <label><input type="radio" name="sort" value="oldest"><span>oldest first</span></label>
+      </span>
     </div>
   </div>
-  <div class="row">
-    <span class="rowlabel">match</span>
-    <div class="ctl">
-      <label><input type="radio" name="mode" value="word" checked> words</label>
-      <label><input type="radio" name="mode" value="substring"> substring</label>
-    </div>
-  </div>
-  <div class="row">
-    <span class="rowlabel">order</span>
-    <div class="ctl">
-      <label><input type="radio" name="sort" value="newest" checked> newest first</label>
-      <label><input type="radio" name="sort" value="oldest"> oldest first</label>
-    </div>
-  </div>
-  <div class="row">
-    <span class="rowlabel">dates</span>
-    <div class="ctl">
+  <div class="opts">
+    <div class="group dates" role="group" aria-label="Dates">
+      <span class="lbl">dates</span>
       <label>from <input id="from" type="date" min="2019-10-01"></label>
       <label>to <input id="to" type="date" min="2019-10-01"></label>
-      <span class="nudge"><button type="button" id="earlier" title="Shift the range back by its own length">&lsaquo; earlier</button> <button type="button" id="later" title="Shift the range forward by its own length">later &rsaquo;</button></span>
-      <button type="button" id="clear-dates" class="clear" title="All dates">clear</button>
-      <span class="presets" id="presets"><a href="#" data-preset="7">last 7 days</a> <a href="#" data-preset="30">last 30 days</a> <a href="#" data-preset="365">last year</a></span>
+      <span class="chips">
+        <button type="button" class="chip" id="earlier" title="Shift the range back by its own length">&lsaquo; earlier</button>
+        <button type="button" class="chip" id="later" title="Shift the range forward by its own length">later &rsaquo;</button>
+        <button type="button" class="chip" id="clear-dates" title="Search all dates">all dates</button>
+      </span>
+    </div>
+    <div class="group" role="group" aria-label="Source">
+      <span class="lbl">source</span>
+      <input id="domain" type="text" placeholder="any site, e.g. bbc.com" aria-label="Source domain">
+      <button type="button" class="chip" id="clear-domain" title="Any source">any</button>
     </div>
   </div>
-  <div class="row">
-    <span class="rowlabel">source</span>
-    <div class="ctl">
-      <input id="domain" type="text" placeholder="bbc.com" size="14" aria-label="Source domain">
-      <button type="button" id="clear-domain" class="clear" title="Any source">clear</button>
-    </div>
-  </div>
+  <p class="help">Word search matches whole words, in any order. Substring search matches the exact run of characters. Search is case-insensitive.</p>
 </form>
 
 <p id="examples">Try: <a href="?q=ceasefire">ceasefire</a>, <a href="?q=climate+change">climate change</a>, <a href="?q=zelensk&amp;mode=substring">zelensk (substring)</a>, <a href="?q=election&amp;domain=bbc.com">election on bbc.com</a>, <a href="?q=tariff&amp;sort=oldest">tariff, oldest first</a>.</p>
-<p id="status"></p>
-<div id="months"></div>
-<table id="results"></table>
-<p id="more"></p>
 
-<hr>
-<p id="meta">Data comes from GDELT and is ingested a few times per day. Headlines are page titles as GDELT recorded them. <a href="https://github.com/alexdunham14/headlinesearch">Source code</a>.</p>
+<div id="out" hidden>
+  <div class="summary"><p id="status"></p><button type="button" class="chip" id="count" hidden>Count by month</button></div>
+  <section id="months" hidden>
+    <h2>Matches by month</h2>
+    <p class="note" id="months-note"></p>
+    <div class="chart" id="chart"></div>
+    <div class="years" id="years"></div>
+    <details class="tbl"><summary>as a list</summary><table id="months-table"></table></details>
+  </section>
+  <h2 id="list-h" hidden>Headlines</h2>
+  <ol id="results" class="hl"></ol>
+  <p id="more"></p>
+</div>
+
+<footer id="meta">Data comes from GDELT and is ingested a few times per day. Headlines are page titles as GDELT recorded them. <a href="https://github.com/alexdunham14/headlinesearch">Source code</a>.</footer>
 <script src="app.js"></script>
 </body>
 </html>

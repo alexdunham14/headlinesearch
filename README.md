@@ -18,8 +18,13 @@ turned up in the news, or what a particular outlet headlined that week.
   is loaded (first and last day, row count). The URL carries the query so a
   search can be linked to.
 - Search covers the whole corpus (English-language GKG files, 2019-10-01 to
-  yesterday) and answers in a few seconds at worst. Word search matches whole
-  words, case-insensitive; substring search matches any run of characters.
+  yesterday). Word search matches whole words, case-insensitive, and answers
+  in seconds for any word over the whole range. Substring search matches any
+  run of characters and is as quick unless the run is made of common
+  trigrams, in which case the page says so and offers whole-word search or
+  the last twelve months instead. Counting matches by month runs in
+  six-month windows and draws the chart as they arrive: seconds for a rare
+  word, a few minutes for a common one.
 - The database is fed by a scheduled ingest that reads GDELT's master file
   list, downloads new GKG files, keeps only date, source, URL and title, and
   inserts them. It is idempotent and resumable: re-running never duplicates rows
@@ -48,8 +53,9 @@ Three pieces, in three places.
    into ClickHouse. The `files` table records what has been done.
    `--from-dir` reads zips already on disk instead of downloading.
 2. **ClickHouse** on a small VPS (`server/`). One table, `headlines`, ordered by
-   time with a text index over lowercased titles that serves both word and
-   substring queries. A read-only `search` user with a quota, reachable only
+   time with three bloom-filter skip indexes: whole words and trigrams of the
+   lowercased titles, and the source domain (`scripts/schema.sql` explains
+   them). A read-only `search` user with a quota, reachable only
    from the Worker. `server/setup.sh` turns a fresh Debian box into this.
 3. **The site** on Cloudflare Workers: `index.html`, `styles.css`, `app.js`
    as static assets, and `worker.js` for `/api/search`, `/api/count` and
@@ -62,20 +68,34 @@ paged with `page=`, up to 50 pages. Either direction reads from its end of
 the table and stops at the limit, so they cost the same. Stats is the first
 and last timestamp and the row count, which the page shows so nobody
 searches for 2020 while only 2025 is loaded.
-Count returns matches per month and is a full scan for anything but rare
-terms: it runs with a 20 second budget and says so when it ran out. Both
-modes lower-case the query.
+Count returns matches per month for a date range, with a 20 second budget,
+and says so when it ran out. The page asks for six-month windows, newest
+first, and draws the chart as they arrive, so a common word over the whole
+archive takes a few minutes and a rare word seconds; each window is cached
+at the edge for a day. Both modes lower-case the query.
 
 Word mode requires every word to be present as a whole token (split on
 anything that is not a letter or digit). Substring mode requires the exact
-character sequence. A bloom filter per granule over lowercased trigrams
-(`scripts/schema.sql` explains the sizing) lets ClickHouse skip the hour-long
-granules that cannot contain a rare term; common terms are found in the first
-few granules anyway because reads go newest-first and stop at the limit.
+character sequence. Per granule (8192 rows, about an hour of news) there is a
+bloom filter over the lowercased titles' whole words, one over their trigrams,
+and one over the source domains, so ClickHouse skips every hour that cannot
+contain the word, the trigrams or the site. Common terms are found in the
+first few granules anyway because reads go newest-first and stop at the
+limit. What the filters cannot do is prune on a combination: a common word on
+a big site where the pair is rare ("hurricane" on irishtimes.com) scans until
+it finds a hundred, and so does a substring made of common trigrams
+("nenagh" as a substring; as a word it is instant). Those are the searches
+that can hit the ten-second limit over the whole archive; the page then offers
+the last twelve months, or whole words. A projection of the table ordered by
+(domain, ts) would fix the site case at the cost of doubling the disk.
 
-Sizes measured on 30 days (3.5M rows): 54 bytes a row on disk including the
-index, so about 26 GB for the corpus. A full scan of the title column runs at
-tens of millions of rows a second per core.
+Measured 2026-09-10 on the Lightsail box (2 vCPU, 4 GB) with 63M rows loaded
+and the backfill inserting: a full scan of the titles ran at 4.5M rows a
+second, so a full-corpus scan is about 100 seconds, which is why nothing on
+the page depends on one. The token index cut a rare word ("nenagh", 88
+matches) from a full scan to 1.3% of granules. Earlier, on 30 days: 54 bytes
+a row on disk including the trigram index, so about 26 GB of data for the
+corpus; the token index adds about 8 bytes a row.
 
 ## Running it locally
 

@@ -1,35 +1,83 @@
-body { max-width: 60rem; margin: 1.5rem auto; padding: 0 1rem; font: 1rem/1.5 Georgia, "Times New Roman", serif; color: #1a1a1a; background: #fff; }
-@media (prefers-color-scheme: dark) { body { color: #e6e6e6; background: #141414; } a { color: #9cc4ff; } }
+/* One column of text. The search panel, the month chart and the headline list are
+   the three blocks; small uppercase labels name things, the serif carries the rest. */
+:root { --ink: #1a1a1a; --bg: #fff; --muted: #666; --faint: #999; --line: #ddd; --hair: #eee; --panel: #f4f3ef; --field: #fff; --edge: #b9b9b9; --bar: #4d6d9a; --bar-sel: #23406b; --band: rgba(0, 0, 0, .06); --mark: #fff0a8; }
+@media (prefers-color-scheme: dark) {
+  :root { --ink: #e6e6e6; --bg: #141414; --muted: #a3a3a3; --faint: #777; --line: #333; --hair: #262626; --panel: #1e1e1e; --field: #141414; --edge: #555; --bar: #7aa2d8; --bar-sel: #b3cdf0; --band: rgba(255, 255, 255, .08); --mark: #4a3d00; }
+  a { color: #9cc4ff; }
+}
+body { max-width: 60rem; margin: 1.5rem auto; padding: 0 1rem; font: 1rem/1.5 Georgia, "Times New Roman", serif; color: var(--ink); background: var(--bg); }
 h1 { font-weight: normal; font-size: 1.9rem; margin: 0 0 .4rem; }
-/* Filters: one row per kind. A small label in a fixed column on the left, the controls
-   wrapping in a block of their own on the right; on a phone the label sits above the controls. */
-form { margin: 1rem 0; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd; }
-form .row { display: grid; grid-template-columns: 5rem 1fr; align-items: baseline; padding: .5rem 0; }
-form .row + .row { border-top: 1px solid #eee; }
-.rowlabel { font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: #777; }
-.ctl { display: flex; flex-wrap: wrap; gap: .4rem .9rem; align-items: center; min-width: 0; }
-.ctl label { white-space: nowrap; }
-select { max-width: 100%; }
-@media (max-width: 40rem) { form .row { grid-template-columns: 1fr; row-gap: .3rem; } }
-input, button, select { font: inherit; }
-#q { flex: 1 1 14rem; max-width: 30rem; padding: .2rem .4rem; }
-button.clear, .nudge button { font-size: .85rem; padding: .1rem .5rem; border: 1px solid #bbb; border-radius: .25rem; background: transparent; color: inherit; cursor: pointer; }
-button.clear:hover, .nudge button:hover { border-color: #666; }
-.nudge { white-space: nowrap; }
-.presets { font-size: .9rem; }
-.presets a { margin-right: .6rem; }
-table { border-collapse: collapse; width: 100%; font-size: .95rem; }
-td { padding: .25rem .6rem .25rem 0; vertical-align: top; }
-td.when { white-space: nowrap; color: #555; }
-td.src { color: #555; white-space: nowrap; }
-td.title a { color: inherit; }
-.n { color: #888; font-size: .85em; }
-td.src a { color: inherit; text-decoration: none; border-bottom: 1px dotted #999; }
-#months td.when a { color: inherit; }
-mark { background: none; color: inherit; font-weight: bold; }
-#months table { width: auto; }
-#months td.bar { padding-left: 0; }
-#months td.bar span { display: inline-block; height: .8em; background: #999; vertical-align: middle; }
-#status, #more, #meta, #examples, .none { color: #666; font-size: .9rem; }
+h2, .lbl { font: .72rem/1.4 system-ui, sans-serif; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); margin: 0; }
+h2 { margin: 1.4rem 0 .5rem; }
+.lede { margin: 0 0 1rem; }
+input, button { font: inherit; color: inherit; }
+input[type=search], input[type=text], input[type=date] { appearance: none; -webkit-appearance: none; background: var(--field); border: 1px solid var(--edge); border-radius: .4rem; padding: .35rem .6rem; min-width: 0; }
+input:focus-visible, .chip:focus-visible, .go:focus-visible { outline: 2px solid var(--bar); outline-offset: 1px; }
+
+/* The search panel */
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: .7rem; padding: 1rem; margin: 1rem 0; }
+.q { display: flex; gap: .5rem; }
+#q { flex: 1 1 auto; font-size: 1.1rem; padding: .5rem .75rem; }
+.go { border: 0; border-radius: .4rem; padding: .5rem 1.1rem; background: var(--ink); color: var(--bg); cursor: pointer; }
+.opts { display: flex; flex-wrap: wrap; gap: .7rem 2rem; margin-top: .9rem; }
+.group { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .5rem; min-width: 0; }
+.group > .lbl { min-width: 3.6rem; }
+.seg { display: inline-flex; border: 1px solid var(--edge); border-radius: 999px; background: var(--field); overflow: hidden; }
+.seg label { position: relative; }
+.seg input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.seg span { display: block; padding: .25rem .8rem; font-size: .9rem; white-space: nowrap; }
+.seg input:checked + span { background: var(--ink); color: var(--bg); }
+.seg input:focus-visible + span { outline: 2px solid var(--bar); outline-offset: -2px; }
+.dates label { display: inline-flex; align-items: center; gap: .35rem; font-size: .9rem; color: var(--muted); }
+.dates input { font-size: .9rem; padding: .25rem .45rem; }
+.chips { display: inline-flex; flex-wrap: wrap; gap: .35rem; }
+.chip { font-size: .8rem; padding: .2rem .65rem; border: 1px solid var(--edge); border-radius: 999px; background: var(--field); cursor: pointer; white-space: nowrap; }
+.chip:hover { border-color: var(--muted); }
+#domain { width: 13rem; max-width: 100%; font-size: .9rem; padding: .25rem .5rem; }
+.help { margin: .9rem 0 0; font-size: .85rem; color: var(--muted); }
+#examples { color: var(--muted); font-size: .9rem; }
+
+/* Results: a summary line, the optional chart, then the list */
+.summary { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin: 1.4rem 0 .6rem; padding-bottom: .6rem; border-bottom: 1px solid var(--line); }
+.summary p { margin: 0; color: var(--muted); font-size: .9rem; }
+.summary .chip.act { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+#months { margin: .8rem 0 1.2rem; padding: .9rem 1rem 1rem; border: 1px solid var(--line); border-radius: .7rem; }
+#months h2 { margin: 0 0 .3rem; }
+.note { margin: 0 0 .6rem; font-size: .85rem; color: var(--muted); }
+.chart { display: flex; align-items: stretch; gap: 2px; height: 7rem; border-bottom: 1px solid var(--line); }
+.chart a { flex: 1 1 0; min-width: 1px; display: flex; align-items: flex-end; text-decoration: none; }
+.chart a i { display: block; width: 100%; background: var(--bar); border-radius: 2px 2px 0 0; }
+.chart a:hover i, .chart a.sel i { background: var(--bar-sel); }
+.chart a.sel { background: var(--band); }
+.years { display: flex; gap: 2px; margin: .15rem 0 .5rem; font: .72rem/1.4 system-ui, sans-serif; color: var(--muted); }
+.years span { flex: 1 1 0; min-width: 0; }
+.years a { color: inherit; text-decoration: none; white-space: nowrap; }
+.years a:hover { text-decoration: underline; }
+.tbl { font-size: .85rem; color: var(--muted); }
+.tbl summary { cursor: pointer; }
+.tbl table { border-collapse: collapse; margin-top: .4rem; }
+.tbl td { padding: .05rem 1rem .05rem 0; }
+.tbl td a { color: inherit; }
+ol.hl { list-style: none; margin: 0; padding: 0; }
+ol.hl li { padding: .55rem 0; border-top: 1px solid var(--hair); }
+ol.hl li:first-child { border-top: 0; }
+ol.hl li a.t { color: inherit; text-decoration: none; }
+ol.hl li a.t:hover { text-decoration: underline; }
+.m { display: block; font-size: .8rem; color: var(--muted); margin-top: .1rem; }
+.m a { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--faint); }
+.n { color: var(--faint); font-size: .85em; }
+mark { background: var(--mark); color: inherit; font-weight: bold; border-radius: 2px; }
+#more { font-size: .9rem; }
 #more a { cursor: pointer; }
-@media (prefers-color-scheme: dark) { td.when, td.src, #status, #more, #meta, #examples, .none, .rowlabel { color: #999; } form { border-color: #333; } form .row + .row { border-color: #2a2a2a; } button.clear, .nudge button { border-color: #555; } }
+#meta { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--line); font-size: .85rem; color: var(--muted); }
+
+@media (max-width: 40rem) {
+  body { margin-top: 1rem; }
+  .panel { padding: .8rem; }
+  .opts { flex-direction: column; gap: .7rem; }
+  .group > .lbl { width: 100%; min-width: 0; }
+  .dates label { flex: 1 1 8rem; }
+  .dates input { flex: 1 1 auto; width: 100%; }
+  #domain { flex: 1 1 8rem; width: auto; }
+  .chart { height: 5.5rem; }
+}

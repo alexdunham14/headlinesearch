@@ -40,7 +40,7 @@ export default {
     try {
       body = count ? await runCount(env, q) : await runSearch(env, q);
     } catch (e) {
-      return json({ error: e.message }, 502);
+      return json({ error: e.message, timeout: !!e.timeout }, 502);
     }
     const res = json(body, 200, `public, max-age=${count ? 86400 : 3600}`);
     ctx.waitUntil(cache.put(key, res.clone()));
@@ -121,9 +121,13 @@ function where(q, params) {
       const lw = w.toLowerCase();
       params["w" + i] = lw;
       params["p" + i] = "%" + lw.replace(/[\\%_]/g, "\\$&") + "%";
-      // hasTokenCaseInsensitive folds ASCII only; go through lowerUTF8 for anything else.
-      conds.push(/^[\x00-\x7f]*$/.test(w) ? `hasTokenCaseInsensitive(title, {w${i}:String})` : `hasToken(lowerUTF8(title), {w${i}:String})`);
-      conds.push(`lowerUTF8(title) LIKE {p${i}:String}`);
+      // Three tests that agree: hasTokenCaseInsensitive is the cheap per-row one
+      // (ASCII folding only, so non-ASCII words skip it); hasToken(lowerUTF8()) is
+      // what the token bloom index prunes granules by, which is what makes a rare
+      // word fast over the whole archive; the LIKE is what the trigram index
+      // understands. ClickHouse evaluates them left to right and stops early.
+      if (/^[\x00-\x7f]*$/.test(w)) conds.push(`hasTokenCaseInsensitive(title, {w${i}:String})`);
+      conds.push(`hasToken(lowerUTF8(title), {w${i}:String})`, `lowerUTF8(title) LIKE {p${i}:String}`);
     });
   }
   return conds.join(" AND ");
@@ -163,7 +167,10 @@ async function clickhouse(env, sql, params, settings) {
   if (!res.ok) {
     const text = await res.text();
     console.error("clickhouse", res.status, text.slice(0, 300));
-    throw new Error(text.includes("TIMEOUT_EXCEEDED") ? "search took too long; narrow the dates" : "database error");
+    const timeout = text.includes("TIMEOUT_EXCEEDED");
+    const e = new Error(timeout ? "This search would take more than 10 seconds over the whole archive." : "database error");
+    e.timeout = timeout;
+    throw e;
   }
   return res.json();
 }

@@ -162,6 +162,7 @@
     $("months").hidden = false;
     $("list-h").hidden = false;
     $("count").classList.remove("act");
+    $("months-note").textContent = "counting…";
     await statsReady; // the chart spans what is loaded, so wait to know that
     if (chart.key !== key) return;
     const months = monthList();

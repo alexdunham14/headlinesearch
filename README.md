@@ -120,7 +120,9 @@ CH_SEARCH_PASSWORD=... CH_INGEST_PASSWORD=... R2_ACCOUNT_ID=... R2_ACCESS_KEY_ID
 ```
 
 That installs ClickHouse, the config in `server/`, a firewall that admits
-port 8123 from Cloudflare's published IP ranges only, and a systemd timer
+port 8080 from Cloudflare's published IP ranges only (8080 rather than
+ClickHouse's usual 8123: a Worker's `fetch()` only reaches ports on
+Cloudflare's supported list), and a systemd timer
 that runs the ingest every six hours. To start from the R2 archive rather
 than re-downloading GDELT, run `server/rebuild.sql` (with the account id and
 keys filled in) through `clickhouse-client` first. Traffic between Cloudflare

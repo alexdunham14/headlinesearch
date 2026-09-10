@@ -3,7 +3,8 @@
 // read-only `search` user, cache the answer at the edge. Everything else is a
 // static asset. Nothing a visitor sends ever reaches ClickHouse as SQL.
 //
-// Secrets: CH_URL (e.g. http://1.2.3.4:8123), CH_PASSWORD. Binding:
+// Secrets: CH_URL (e.g. http://1.2.3.4:8080; the port must be one Cloudflare
+// proxies, 8123 is not), CH_PASSWORD. Binding:
 // SEARCH_LIMIT (rate limit per IP, see wrangler.jsonc).
 
 const PAGE = 100;
@@ -161,6 +162,7 @@ async function clickhouse(env, sql, params, settings) {
   });
   if (!res.ok) {
     const text = await res.text();
+    console.error("clickhouse", res.status, text.slice(0, 300));
     throw new Error(text.includes("TIMEOUT_EXCEEDED") ? "search took too long; narrow the dates" : "database error");
   }
   return res.json();

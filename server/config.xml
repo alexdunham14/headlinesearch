@@ -1,9 +1,13 @@
 <!-- Server settings for a small box (4 to 8 GB). Installed by setup.sh as
      /etc/clickhouse-server/config.d/headlinesearch.xml. Listens on all
-     interfaces: the firewall (setup.sh) admits port 8123 from Cloudflare only. -->
+     interfaces: the firewall (setup.sh) admits port 8123 from Cloudflare only.
+     :: is a dual-stack socket that also serves IPv4; 0.0.0.0 is for boxes
+     without IPv6, where :: fails. listen_try lets whichever fails be skipped
+     (without it, the second bind aborts the server on a dual-stack box). -->
 <clickhouse>
-  <listen_host>0.0.0.0</listen_host>
   <listen_host>::</listen_host>
+  <listen_host>0.0.0.0</listen_host>
+  <listen_try>1</listen_try>
   <http_port>8123</http_port>
   <tcp_port>9000</tcp_port>
   <max_server_memory_usage_to_ram_ratio>0.7</max_server_memory_usage_to_ram_ratio>

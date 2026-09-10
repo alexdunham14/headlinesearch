@@ -45,7 +45,7 @@ ufw default deny incoming
 ufw default allow outgoing
 ufw allow 22/tcp
 for ip in $(curl -fsS https://www.cloudflare.com/ips-v4) $(curl -fsS https://www.cloudflare.com/ips-v6); do
-  ufw allow from "$ip" to any port 8080 proto tcp
+  ufw allow from "$ip" to any port 8123 proto tcp
 done
 ufw --force enable
 
@@ -59,7 +59,7 @@ clickhouse-client --multiquery < scripts/schema.sql
 id -u headlines >/dev/null 2>&1 || useradd -r -m -d /var/lib/headlines -s /usr/sbin/nologin headlines
 umask 077
 cat > /var/lib/headlines/env <<ENV
-CH_URL=http://127.0.0.1:8080
+CH_URL=http://127.0.0.1:8123
 CH_USER=ingest
 CH_PASSWORD=$CH_INGEST_PASSWORD
 R2_ACCOUNT_ID=$R2_ACCOUNT_ID

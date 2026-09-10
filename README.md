@@ -107,7 +107,10 @@ Cloudflare Workers static assets plus a fetch handler (`wrangler.jsonc`).
 Deploy by hand with `wrangler deploy` from a checkout. The GitHub Actions deploy was removed on 2026-09-06 because the `CLOUDFLARE_API_TOKEN` secret is not set and every push failed; put it back (cloudflare/wrangler-action with the token and `CLOUDFLARE_ACCOUNT_ID`) once the token exists.
 The Worker needs two secrets of its
 own: `CH_URL` (the ClickHouse HTTP endpoint) and `CH_PASSWORD` (the `search`
-user's password), set with `wrangler secret put`.
+user's password), set with `wrangler secret put`. `CH_URL` must use a
+hostname, not a bare IP address: a Worker's `fetch()` to an IP literal is
+refused at Cloudflare's edge (error 1003) and never reaches the server. Any
+port works.
 
 ## Setting up the server
 
@@ -120,9 +123,7 @@ CH_SEARCH_PASSWORD=... CH_INGEST_PASSWORD=... R2_ACCOUNT_ID=... R2_ACCESS_KEY_ID
 ```
 
 That installs ClickHouse, the config in `server/`, a firewall that admits
-port 8080 from Cloudflare's published IP ranges only (8080 rather than
-ClickHouse's usual 8123: a Worker's `fetch()` only reaches ports on
-Cloudflare's supported list), and a systemd timer
+port 8123 from Cloudflare's published IP ranges only, and a systemd timer
 that runs the ingest every six hours. To start from the R2 archive rather
 than re-downloading GDELT, run `server/rebuild.sql` (with the account id and
 keys filled in) through `clickhouse-client` first. Traffic between Cloudflare

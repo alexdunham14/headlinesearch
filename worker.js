@@ -3,8 +3,8 @@
 // read-only `search` user, cache the answer at the edge. Everything else is a
 // static asset. Nothing a visitor sends ever reaches ClickHouse as SQL.
 //
-// Secrets: CH_URL (e.g. http://1.2.3.4:8080; the port must be one Cloudflare
-// proxies, 8123 is not), CH_PASSWORD. Binding:
+// Secrets: CH_URL (e.g. http://db.example.com:8123; a hostname, not a bare
+// IP, which Cloudflare refuses with error 1003), CH_PASSWORD. Binding:
 // SEARCH_LIMIT (rate limit per IP, see wrangler.jsonc).
 
 const PAGE = 100;

@@ -13,8 +13,9 @@
   <max_server_memory_usage_to_ram_ratio>0.7</max_server_memory_usage_to_ram_ratio>
   <mark_cache_size>268435456</mark_cache_size>
   <uncompressed_cache_size>0</uncompressed_cache_size>
-  <background_pool_size>2</background_pool_size>
-  <background_schedule_pool_size>4</background_schedule_pool_size>
+  <!-- Background pools are left at their defaults: capping background_pool_size
+       below the merge_tree free-entry thresholds (20 by default) stops the server
+       from starting. -->
   <max_connections>256</max_connections>
   <max_concurrent_queries>16</max_concurrent_queries>
   <query_log><ttl>event_date + INTERVAL 14 DAY</ttl></query_log>

@@ -174,13 +174,14 @@
     }
   }
 
-  // Counting a common term across every month reads the whole archive, which takes
-  // minutes on the database box. So the count runs in six-month windows, newest
-  // first, each bounded by the server's time limit, and the chart fills in as they
-  // arrive. Each window is cached at the edge for a day.
+  // The count runs in twelve-month windows, newest first, so the chart fills
+  // in as they arrive (about a second a window since the text index); each
+  // window is cached at the edge for a day. The Worker refuses requests when
+  // an address has sent too many in a minute (a search with its chart is
+  // eight); windows refused that way are asked for again after the minute.
   async function count(p) {
     const key = chartKey(p);
-    chart = { key, counts: new Map(), partial: new Set(), running: true, failed: 0 };
+    chart = { key, counts: new Map(), partial: new Set(), running: true, failed: 0, limited: 0, wait: 0 };
     $("months").hidden = false;
     $("list-h").hidden = false;
     $("count").classList.remove("act");
@@ -189,21 +190,40 @@
     if (chart.key !== key) return;
     const months = monthList();
     const windows = [];
-    for (let i = months.length; i > 0; i -= 6) windows.push(months.slice(Math.max(0, i - 6), i));
+    for (let i = months.length; i > 0; i -= 12) windows.push(months.slice(Math.max(0, i - 12), i));
     renderChart(p);
-    for (const w of windows) {
-      if (chart.key !== key) return;
+    const fetchWindow = async w => {
       chart.now = w;
       renderChart(p);
       const q = new URLSearchParams({ q: p.get("q"), mode: p.get("mode"), from: w[0] + "-01", to: monthEnd(w[w.length - 1]) });
       if (p.get("domain")) q.set("domain", p.get("domain"));
       let r;
       try { r = await fetch("/api/count?" + q).then(res => res.json()); } catch (e) { r = { error: "count failed" }; }
-      if (chart.key !== key) return;
-      if (r.error) { chart.failed++; continue; }
+      if (chart.key !== key || r.error) return r;
       for (const m of w) chart.counts.set(m, 0);
       for (const [m, n] of r.months) chart.counts.set(m.slice(0, 7), n);
       if (r.partial) for (const m of w) chart.partial.add(m);
+      return r;
+    };
+    const refused = [];
+    for (const w of windows) {
+      if (chart.key !== key) return;
+      const r = await fetchWindow(w);
+      if (chart.key !== key) return;
+      if (r.error) { if (r.rateLimited) refused.push(w); else chart.failed++; }
+    }
+    if (refused.length) {
+      chart.now = null;
+      for (chart.wait = 30; chart.wait > 0; chart.wait--) {
+        renderChart(p);
+        await new Promise(res => setTimeout(res, 1000));
+        if (chart.key !== key) return;
+      }
+      for (const w of refused) {
+        const r = await fetchWindow(w);
+        if (chart.key !== key) return;
+        if (r.error) { chart.failed++; if (r.rateLimited) chart.limited++; }
+      }
     }
     chart.running = false;
     chart.now = null;
@@ -225,11 +245,12 @@
       if (n) last = m;
     }
     let note;
-    if (chart.running) note = `${total.toLocaleString()} so far; counting ${chart.now ? `${fmtMonth(chart.now[0])} to ${fmtMonth(chart.now[chart.now.length - 1])}` : ""}…`;
+    if (chart.running && chart.wait) note = `${total.toLocaleString()} so far; too many requests from here in a minute, so the rest wait ${chart.wait} s…`;
+    else if (chart.running) note = `${total.toLocaleString()} so far; counting ${chart.now ? `${fmtMonth(chart.now[0])} to ${fmtMonth(chart.now[chart.now.length - 1])}` : ""}…`;
     else if (!total) note = chart.failed ? "The count could not be completed." : "No matching headlines in any month.";
     else note = `${total.toLocaleString()} matching headline${total === 1 ? "" : "s"}, ${fmtMonth(first)} to ${fmtMonth(last)}, most in ${fmtMonth(peak)} (${max.toLocaleString()}).`;
     if (!chart.running && chart.partial.size) note += " Months marked ~ hit the time limit, so their counts are low.";
-    if (!chart.running && chart.failed) note += ` ${chart.failed} window${chart.failed === 1 ? "" : "s"} could not be counted.`;
+    if (!chart.running && chart.failed) note += ` ${chart.failed} window${chart.failed === 1 ? "" : "s"} could not be counted${chart.limited ? " (too many searches from here in a minute; search again in a minute to fill them in)" : ""}.`;
     if (!chart.running && total) note += " Click a month or a year to narrow the search to it.";
     $("months-note").textContent = note;
     $("chart").innerHTML = months.map(m => {

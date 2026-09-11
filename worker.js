@@ -5,7 +5,8 @@
 //
 // Secrets: CH_URL (e.g. http://db.example.com:8123; a hostname, not a bare
 // IP, which Cloudflare refuses with error 1003), CH_PASSWORD. Binding:
-// SEARCH_LIMIT (rate limit per IP, see wrangler.jsonc).
+// SEARCH_LIMIT (rate limit per IP, see wrangler.jsonc: 120 a minute, where a
+// search with its chart is eight requests; the page retries what is refused).
 
 const PAGE = 100;
 const MAX_OFFSET = 5000;
@@ -38,7 +39,7 @@ export default {
 
     const ip = request.headers.get("cf-connecting-ip") || "0";
     const { success } = await env.SEARCH_LIMIT.limit({ key: ip });
-    if (!success) return json({ error: "Too many searches; wait a minute." }, 429);
+    if (!success) return json({ error: "Too many searches; wait a minute.", rateLimited: true }, 429);
 
     const count = url.pathname === "/api/count";
     let body;

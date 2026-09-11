@@ -27,8 +27,8 @@ turned up in the news, or what a particular outlet headlined that week.
   quick when the pattern contains four or more letters or digits in a row;
   otherwise it scans and can hit the 20-second limit over the whole archive,
   in which case the page says so and offers whole-word search or the last
-  twelve months instead. Counting matches by month runs in six-month windows
-  and draws the chart as they arrive, about a second a window.
+  twelve months instead. Counting matches by month runs in twelve-month
+  windows and draws the chart as they arrive, about a second a window.
 - The database is fed by a scheduled ingest that reads GDELT's master file
   list, downloads new GKG files, keeps only date, source, URL and title, and
   inserts them. It is idempotent and resumable: re-running never duplicates rows
@@ -66,7 +66,9 @@ Three pieces, in three places.
    as static assets, and `worker.js` for `/api/search`, `/api/count` and
    `/api/stats`, which validate the parameters, build a parameterised
    ClickHouse query, cache the answer at the edge (an hour for searches and
-   stats, a day for counts) and rate-limit by IP (30 a minute).
+   stats, a day for counts) and rate-limit by IP (120 a minute; a search
+   with its chart is eight requests, and the page retries windows that were
+   refused once the minute has turned).
 
 Search returns 100 matches, newest first or oldest first (`sort=oldest`),
 paged with `page=`, up to 50 pages. Either direction reads from its end of
@@ -74,10 +76,10 @@ the table and stops at the limit, so they cost the same. Stats is the first
 and last timestamp and the row count, which the page shows so nobody
 searches for 2020 while only 2025 is loaded.
 Count returns matches per month for a date range, with a 20 second budget,
-and says so when it ran out. The page asks for six-month windows, newest
-first, and draws the chart as they arrive, about half a second a window
-since the text index (a common word over the whole archive took minutes
-before it); each window is cached at the edge for a day. Both modes
+and says so when it ran out. The page asks for twelve-month windows, newest
+first, and draws the chart as they arrive, about a second a window since
+the text index (a common word over the whole archive took minutes before
+it); each window is cached at the edge for a day. Both modes
 lower-case the query.
 
 Word mode requires every word to be present as a whole token (split on

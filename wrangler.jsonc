@@ -10,6 +10,6 @@
   ],
   "observability": { "enabled": true },
   "ratelimits": [
-    { "name": "SEARCH_LIMIT", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } }
+    { "name": "SEARCH_LIMIT", "namespace_id": "1001", "simple": { "limit": 120, "period": 60 } }
   ]
 }

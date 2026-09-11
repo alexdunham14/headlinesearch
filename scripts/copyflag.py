@@ -110,9 +110,13 @@ FROM (
 ) ORDER BY ts, domain, url"""
 
 
-# The settings the heavy statements run with on a 4 GB box.
-HEAVY = {"max_threads": 2, "max_memory_usage": 2800000000, "max_bytes_before_external_sort": 600000000,
-         "max_bytes_before_external_group_by": 600000000, "max_execution_time": 3600}
+# The settings the heavy statements run with on a 4 GB box, where the server
+# is capped at 70% of RAM (server/config.xml): the sort spills to disk early,
+# so a month's rebuild stays near a gigabyte (the first try, with a 600 MB
+# sort buffer and 2.5M-row insert blocks, reached 1.8 GB and hit the cap
+# when a background merge ran beside it).
+HEAVY = {"max_threads": 2, "max_memory_usage": 1800000000, "max_bytes_before_external_sort": 250000000,
+         "max_bytes_before_external_group_by": 250000000, "max_execution_time": 3600}
 
 
 # ---------------------------------------------------------------- ClickHouse
@@ -193,6 +197,11 @@ def backfill():
         ch("ALTER TABLE headlines ADD PROJECTION by_domain (SELECT ts, domain, url, title, copy ORDER BY (domain, ts))")
     ch("CREATE TABLE IF NOT EXISTS headlines_new AS headlines")
     ch("ALTER TABLE headlines MODIFY SETTING old_parts_lifetime = 60")
+    # A merge rebuilds the text index of the merged part with up to a
+    # gigabyte of its own; none while the rebuild runs. Partitions come out
+    # in three or four parts, merged in the background afterwards.
+    ch("SYSTEM STOP MERGES headlines")
+    ch("SYSTEM STOP MERGES headlines_new")
     parts = partitions()
     started = time.time()
     done = 0
@@ -207,8 +216,7 @@ def backfill():
             t = time.time()
             ch(f"ALTER TABLE headlines_new DROP PARTITION {p}")
             start, end = bounds(p)
-            ch(f"INSERT INTO headlines_new (ts, domain, url, title, copy) {backfill_select(start, end)}",
-               {**HEAVY, "max_insert_threads": 1, "min_insert_block_size_rows": 2500000, "min_insert_block_size_bytes": 1500000000})
+            ch(f"INSERT INTO headlines_new (ts, domain, url, title, copy) {backfill_select(start, end)}", {**HEAVY, "max_insert_threads": 1})
             n = ch(f"SELECT count() FROM headlines_new WHERE toYYYYMM(ts) = {p}").strip()
             m = ch(f"SELECT count() FROM headlines WHERE toYYYYMM(ts) = {p}").strip()
             if n != m:
@@ -219,6 +227,7 @@ def backfill():
             log(f"{p} ({i + 1}/{len(parts)}) {n} rows, {time.time() - t:.0f}s, {free_gb():.1f} GB free")
     finally:
         ch("ALTER TABLE headlines RESET SETTING old_parts_lifetime")
+        ch("SYSTEM START MERGES headlines")
     ch("DROP TABLE headlines_new")
     log(f"backfill done: {done} partitions in {(time.time() - started) / 60:.0f} min")
 

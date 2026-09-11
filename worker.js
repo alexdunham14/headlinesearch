@@ -9,8 +9,10 @@
 
 const PAGE = 100;
 const MAX_OFFSET = 5000;
-// The search user's profile caps queries at 20 s; a rare word over the whole
-// archive needs up to about 15 on a cold server (see README).
+// The search user's profile caps queries at 20 s. Since the text index
+// (2026-09-11) a word search over the whole archive is answered in a second
+// or two; the limit is the backstop for the substring patterns the index
+// cannot prune (see README).
 const TIME_LIMIT = 20;
 const FIRST_DAY = "2019-10-01";
 
@@ -103,10 +105,41 @@ function canonical(q) {
 
 // ----------------------------------------------------------------- queries
 
-// The WHERE clause. Each mode pairs a fast case-insensitive test with an
-// equivalent LIKE on lowerUTF8(title): the LIKE is what the trigram bloom
-// index understands, and ClickHouse's short-circuit AND only evaluates the
-// slower lowerUTF8 on rows the fast test already matched.
+// The text index is built on this expression of title (scripts/schema.sql):
+// lowercased, accents stripped (NFD, then the combining marks removed), the
+// letters that do not decompose mapped by hand (ł ø đ ħ ŧ ı, ß æ œ), invalid
+// UTF-8 repaired first because normalizeUTF8NFD throws on it. fold() below
+// is the same thing in JavaScript for what a visitor types, and app.js has a
+// copy for highlighting; the three must agree or a word is not found.
+const FOLD = String.raw`replaceAll(replaceAll(replaceAll(translateUTF8(replaceRegexpAll(normalizeUTF8NFD(lowerUTF8(toValidUTF8(title))), '\\p{Mn}', ''), 'łøđħŧı', 'lodhti'), 'ß', 'ss'), 'æ', 'ae'), 'œ', 'oe')`;
+
+function fold(s) {
+  return s.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "")
+    .replace(/[łøđħŧı]/g, (c) => "lodhti"["łøđħŧı".indexOf(c)])
+    .replace(/ß/g, "ss").replace(/æ/g, "ae").replace(/œ/g, "oe");
+}
+
+// The WHERE clause. Word mode is one hasAllTokens over the folded title,
+// which the text index `tx` answers from its posting lists without reading
+// the title column: the same tokenizer as the index, the folded words as a
+// constant array of bound parameters, so "el nino" and "el niño" both find
+// "El Niño" and "El Nino". Nothing else is tested per row on purpose:
+// hasTokenCaseInsensitive is never index-aware, and an extra LIKE turns the
+// index into a mere hint (measured 2026-09-11 on a one-year copy: 0.5 s for
+// the hinted form, 0.03 s for this one).
+//
+// Substring mode keeps its exact, accent-sensitive meaning: a fast
+// case-insensitive test, then the equivalent LIKE on lowerUTF8(title), which
+// ClickHouse's short-circuit AND only evaluates on rows the fast test
+// matched. Between them goes a LIKE on the folded title per folded fragment
+// of four or more letters or digits: the text index answers a
+// single-fragment LIKE by scanning its dictionary for tokens containing the
+// fragment (text_index_like_min_pattern_length is 4), so "%raleigh%" and
+// "%charter%" narrow the read to the granules holding both kinds of token
+// before the exact pattern is checked. A title that contains the fragment
+// contains its folded form once folded, so each fragment LIKE is implied by
+// the full one and results are unchanged. A pattern with no such fragment
+// gets no pruning and scans until the limit.
 function where(q, params) {
   const conds = ["ts >= {from:Date}", "ts < {to:Date} + INTERVAL 1 DAY"];
   params.from = q.from;
@@ -116,39 +149,43 @@ function where(q, params) {
     params.domain = q.domain;
   }
   if (q.mode === "substring") {
+    const lq = q.q.toLowerCase();
     params.q = q.q;
-    params.pat = "%" + q.q.toLowerCase().replace(/[\\%_]/g, "\\$&") + "%";
-    conds.push("positionCaseInsensitiveUTF8(title, {q:String}) > 0", "lowerUTF8(title) LIKE {pat:String}");
-  } else {
-    q.words.forEach((w, i) => {
-      const lw = w.toLowerCase();
-      params["w" + i] = lw;
-      params["p" + i] = "%" + lw.replace(/[\\%_]/g, "\\$&") + "%";
-      // Three tests that agree: hasTokenCaseInsensitive is the cheap per-row one
-      // (ASCII folding only, so non-ASCII words skip it); hasToken(lowerUTF8()) is
-      // what the token bloom index prunes granules by, which is what makes a rare
-      // word fast over the whole archive; the LIKE is redundant here but costs
-      // nothing. ClickHouse evaluates them left to right and stops early. The
-      // trigram index is switched off for word mode (see settings()): it cannot
-      // prune better than the token index, and decompressing it is another
-      // gigabyte on a word with few matches.
-      if (/^[\x00-\x7f]*$/.test(w)) conds.push(`hasTokenCaseInsensitive(title, {w${i}:String})`);
-      conds.push(`hasToken(lowerUTF8(title), {w${i}:String})`, `lowerUTF8(title) LIKE {p${i}:String}`);
+    params.pat = "%" + like(lq) + "%";
+    conds.push("positionCaseInsensitiveUTF8(title, {q:String}) > 0");
+    lq.split(/[^\p{L}\p{N}]+/u).map(fold).filter((f) => f.length >= 4).forEach((f, i) => {
+      params["f" + i] = "%" + like(f) + "%";
+      conds.push(`${FOLD} LIKE {f${i}:String}`);
     });
+    conds.push("lowerUTF8(title) LIKE {pat:String}");
+  } else {
+    const words = q.words.map(fold).filter(Boolean);
+    if (words.length === 0) throw new Error("no words to search for");
+    words.forEach((w, i) => (params["w" + i] = w));
+    conds.push(`hasAllTokens(${FOLD}, [${words.map((_, i) => `{w${i}:String}`).join(", ")}])`);
   }
   return conds.join(" AND ");
 }
 
-// Word mode is answered by the token index; a source filter by the by_domain
-// projection. Only substring mode needs the trigram index. Projections are
-// switched on only for a source filter: left to itself ClickHouse picks
-// by_domain for every whole-archive search, because in its lazy skip-index
-// mode the table looks like a full scan and the projection has slightly fewer
-// marks, and then it cannot read newest-first and scans until the limit
-// (measured 2026-09-11: "cricket" went from 1 s to a timeout).
+function like(s) {
+  return s.replace(/[\\%_]/g, "\\$&");
+}
+
+// A source filter is served by the by_domain projection, and projections are
+// switched on only then: left to itself ClickHouse picks by_domain for a
+// whole-archive search too, because without a usable index the table looks
+// like a full scan and the projection has slightly fewer marks, and then it
+// cannot read newest-first and scans until the limit (measured 2026-09-11:
+// "cricket" went from 1 s to a timeout). The reverse trap exists too: with
+// the text index usable, a source query looks cheap on the table (the index
+// names the granules with the word) and ClickHouse skips the projection,
+// then reads the domain column of every such granule ("hurricane" on
+// irishtimes.com: 179M rows, timeout). So a source query also tells
+// ClickHouse to ignore the text index; on the projection hasAllTokens runs
+// as a plain function over that site's rows, about two seconds.
 function settings(q, extra) {
   const s = { ...extra, optimize_use_projections: q.domain ? 1 : 0 };
-  if (q.mode === "word") s.ignore_data_skipping_indices = "title_ngram";
+  if (q.domain) s.ignore_data_skipping_indices = "tx";
   return s;
 }
 

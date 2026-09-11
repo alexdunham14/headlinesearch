@@ -5,21 +5,29 @@
 -- title is LZ4 rather than ZSTD because scanning titles is the whole
 -- workload and LZ4 decompresses about twice as fast. url is never scanned.
 --
--- title_ngram is a bloom filter per granule (8192 rows, about an hour of
--- news) over the lowercased trigrams of the titles in it: 32 KB, two hashes,
--- about 13k distinct trigrams per granule, so under 1% false positives per
--- trigram. Queries against lowerUTF8(title) with LIKE or hasToken skip every
--- granule whose filter lacks one of the query's trigrams. That prunes rare
--- terms hard and common terms not at all, which is fine: common terms hit
--- LIMIT after a few granules when read newest-first.
---
--- title_tokens is the same idea over whole words (tokens between non-alphanumeric
--- ASCII characters), 64 KB and three hashes per granule against about 25k
--- distinct tokens, so well under 1% false positives. It exists because the
--- trigram filter cannot prune a rare word made of ordinary trigrams: on
--- 2026-09-10 "nenagh" (88 matches) scanned all 63M rows loaded, 13 seconds,
--- which at the full corpus is a hundred. hasToken(lowerUTF8(title), word)
--- skips every granule without the word.
+-- tx is a text index, ClickHouse's inverted index (26.8): per part, a
+-- front-coded dictionary of the tokens of the folded titles (split on
+-- non-alphanumeric ASCII, the same tokenizer as hasToken) and a roaring-bitmap
+-- posting list per token. Folded: lowercased, then accents stripped (NFD and
+-- the combining marks removed), then the letters that do not decompose mapped
+-- by hand (ł ø đ ħ ŧ ı, ß æ œ), so "nino" and "niño" are one token; the
+-- corpus spells El Niño both ways about equally. toValidUTF8 comes first
+-- because normalizeUTF8NFD throws on invalid UTF-8. The Worker folds the
+-- typed words the same way (fold() in worker.js and app.js) and queries
+-- hasAllTokens(<the same expression>, [...]), which is answered
+-- from the posting lists without reading the title column ("direct read",
+-- query_plan_direct_read_from_text_index, on by default), so a word or a
+-- combination of words with few matches costs the posting lists, not a scan.
+-- It replaced two bloom-filter skip indexes on 2026-09-11 (tokenbf_v1 over
+-- the words, ngrambf_v1 over the trigrams: per-granule filters, which could
+-- only intersect two words at the level of an hour of news; "raleigh charter",
+-- 41 matches from two common words, left 137M rows to scan and timed out).
+-- Substring searches use it too: a LIKE whose pattern has a run of four or
+-- more letters or digits is answered by scanning the dictionary for tokens
+-- containing the run (use_text_index_like_evaluation_by_dictionary_scan).
+-- About a gigabyte per year of rows; inserts write it for their own part and
+-- merges rebuild it for the merged part. Not `hasTokenCaseInsensitive`, which
+-- is never index-aware: lowercase both sides instead, as here.
 --
 -- domain_bf lets a source filter skip the granules (hours) in which that site
 -- published nothing, which for all but the biggest sites is most of them.
@@ -46,8 +54,7 @@ CREATE TABLE IF NOT EXISTS headlines (
   domain String CODEC(ZSTD(3)),
   url    String CODEC(ZSTD(3)),
   title  String CODEC(LZ4),
-  INDEX title_ngram lowerUTF8(title) TYPE ngrambf_v1(3, 32768, 2, 0) GRANULARITY 1,
-  INDEX title_tokens lowerUTF8(title) TYPE tokenbf_v1(65536, 3, 0) GRANULARITY 1,
+  INDEX tx replaceAll(replaceAll(replaceAll(translateUTF8(replaceRegexpAll(normalizeUTF8NFD(lowerUTF8(toValidUTF8(title))), '\\p{Mn}', ''), 'łøđħŧı', 'lodhti'), 'ß', 'ss'), 'æ', 'ae'), 'œ', 'oe') TYPE text(tokenizer = 'splitByNonAlpha'),
   INDEX domain_bf domain TYPE bloom_filter(0.01) GRANULARITY 1,
   PROJECTION by_domain (SELECT ts, domain, url, title ORDER BY (domain, ts))
 )

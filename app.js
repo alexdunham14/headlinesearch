@@ -82,21 +82,43 @@
     if ($("try-word")) $("try-word").onclick = () => { form.mode.value = "word"; go(); };
   }
 
-  // Wrap each match in <mark>: whole words in word mode, the exact run in substring mode.
+  // The database matches words on a folded title: lowercased, accents
+  // stripped, ł ø đ ħ ŧ ı ß æ œ mapped to ASCII (the same fold() as worker.js;
+  // keep them identical). So a search for "nino" returns "El Niño", and the
+  // highlighter has to fold the same way to find what to mark.
+  function fold(s) {
+    return s.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "")
+      .replace(/[łøđħŧı]/g, c => "lodhti"["łøđħŧı".indexOf(c)])
+      .replace(/ß/g, "ss").replace(/æ/g, "ae").replace(/œ/g, "oe");
+  }
+
+  // Wrap each match in <mark>: whole words in word mode, the exact run in
+  // substring mode. Matching runs on the folded title, and each folded
+  // character remembers where in the original it came from, so the mark
+  // lands on the original text ("Niño", not "nino").
   function highlighter(p) {
     const re = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const q = p.get("q");
+    const q = fold(p.get("q"));
     const pat = p.get("mode") === "substring"
       ? re(q)
       : q.split(/[^\p{L}\p{N}]+/u).filter(Boolean).map(w => `(?<![\\p{L}\\p{N}])${re(w)}(?![\\p{L}\\p{N}])`).join("|");
     let rx;
     try { rx = new RegExp(pat, "giu"); } catch (e) { return esc; }
     return title => {
+      let folded = "", starts = [], ends = [], i = 0;
+      for (const ch of title) {
+        const f = fold(ch);
+        for (let k = 0; k < f.length; k++) { starts.push(i); ends.push(i + ch.length); }
+        folded += f;
+        i += ch.length;
+      }
       let out = "", last = 0;
-      for (const m of title.matchAll(rx)) {
+      for (const m of folded.matchAll(rx)) {
         if (!m[0]) continue;
-        out += esc(title.slice(last, m.index)) + "<mark>" + esc(m[0]) + "</mark>";
-        last = m.index + m[0].length;
+        const a = starts[m.index], b = ends[m.index + m[0].length - 1];
+        if (a < last) continue;
+        out += esc(title.slice(last, a)) + "<mark>" + esc(title.slice(a, b)) + "</mark>";
+        last = b;
       }
       return out + esc(title.slice(last));
     };

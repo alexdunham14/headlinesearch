@@ -3,9 +3,9 @@
 Live at https://newsheadlinesearch.com (headlinesearch.alexdunham14.workers.dev also serves it).
 
 Every news headline GDELT has seen since October 2019, searchable by word or by
-substring, with a date range and a source-domain filter. About half a billion
-rows from the GDELT Global Knowledge Graph (GKG), which has carried page titles
-since September 2019. For the person who wants to know when a phrase first
+substring, with a date range and a source-domain filter. About 325 million
+rows (September 2026, growing by four million a month) from the GDELT Global
+Knowledge Graph (GKG), which has carried page titles since September 2019. For the person who wants to know when a phrase first
 turned up in the news, or what a particular outlet headlined that week.
 
 ## Definition of done
@@ -18,15 +18,17 @@ turned up in the news, or what a particular outlet headlined that week.
   is loaded (first and last day, row count). The URL carries the query so a
   search can be linked to.
 - Search covers the whole corpus (English-language GKG files, 2019-10-01 to
-  yesterday). Word search matches whole words, case-insensitive, and answers
-  within its 20-second limit for any word over the whole range, with or
-  without a source: about a second for a common word, a few seconds for a
-  rare one, up to about fifteen when the server's caches are cold. Substring
-  search matches any run of characters and is as quick unless the run is
-  made of common trigrams, in which case the page says so and offers
-  whole-word search or the last twelve months instead. Counting matches by
-  month runs in six-month windows and draws the chart as they arrive:
-  seconds for a rare word, a few minutes for a common one.
+  yesterday). Word search matches whole words, ignoring case and accents
+  ("el nino" finds "El Niño" and "El Nino"; the corpus spells it both ways
+  about equally), and answers
+  in a second or two for any word or combination of words over the whole
+  range, with or without a source, from an inverted index rather than a
+  scan. Substring search matches any run of characters and is usually as
+  quick when the pattern contains four or more letters or digits in a row;
+  otherwise it scans and can hit the 20-second limit over the whole archive,
+  in which case the page says so and offers whole-word search or the last
+  twelve months instead. Counting matches by month runs in six-month windows
+  and draws the chart as they arrive, about a second a window.
 - The database is fed by a scheduled ingest that reads GDELT's master file
   list, downloads new GKG files, keeps only date, source, URL and title, and
   inserts them. It is idempotent and resumable: re-running never duplicates rows
@@ -55,10 +57,11 @@ Three pieces, in three places.
    into ClickHouse. The `files` table records what has been done.
    `--from-dir` reads zips already on disk instead of downloading.
 2. **ClickHouse** on a small VPS (`server/`). One table, `headlines`, ordered by
-   time with three bloom-filter skip indexes: whole words and trigrams of the
-   lowercased titles, and the source domain (`scripts/schema.sql` explains
-   them). A read-only `search` user with a quota, reachable only
-   from the Worker. `server/setup.sh` turns a fresh Debian box into this.
+   time, with a text index (ClickHouse's inverted index) over the lowercased
+   titles, a bloom-filter skip index over the source domain, and a projection
+   ordered by source (`scripts/schema.sql` explains them). A read-only
+   `search` user with a quota, reachable only from the Worker.
+   `server/setup.sh` turns a fresh Debian box into this.
 3. **The site** on Cloudflare Workers: `index.html`, `styles.css`, `app.js`
    as static assets, and `worker.js` for `/api/search`, `/api/count` and
    `/api/stats`, which validate the parameters, build a parameterised
@@ -72,40 +75,72 @@ and last timestamp and the row count, which the page shows so nobody
 searches for 2020 while only 2025 is loaded.
 Count returns matches per month for a date range, with a 20 second budget,
 and says so when it ran out. The page asks for six-month windows, newest
-first, and draws the chart as they arrive, so a common word over the whole
-archive takes a few minutes and a rare word seconds; each window is cached
-at the edge for a day. Both modes lower-case the query.
+first, and draws the chart as they arrive, about half a second a window
+since the text index (a common word over the whole archive took minutes
+before it); each window is cached at the edge for a day. Both modes
+lower-case the query.
 
 Word mode requires every word to be present as a whole token (split on
-anything that is not a letter or digit). Substring mode requires the exact
-character sequence. Per granule (8192 rows, about an hour of news) there is a
-bloom filter over the lowercased titles' whole words, one over their trigrams,
-and one over the source domains, so ClickHouse skips every hour that cannot
-contain the word, the trigrams or the site. Common terms are found in the
-first few granules anyway because reads go newest-first and stop at the
-limit. What the filters cannot do is prune on a combination, so a source
-filter is served by a projection instead: a second copy of the rows ordered
-by (domain, ts), which ClickHouse picks whenever the query names a domain,
-so "hurricane" on irishtimes.com reads that site's rows and nothing else.
-Its price is the disk, about as much again as the table. The Worker turns
+anything that is not a letter or digit), compared after folding: lowercased,
+accents stripped, ł ø đ ß æ œ and the like mapped to ASCII, as Postgres's
+unaccent would. Substring mode requires the exact character sequence, case
+aside. Both are answered by a text index: per data part, a dictionary of
+every token in the folded titles and, for each token, a
+compressed bitmap of the rows that contain it, the same structure as a
+Postgres GIN index. A word search intersects the bitmaps of its words and
+reads only the rows that survive, so "raleigh charter" (41 matches among 325
+million rows, both words common on their own) costs its two posting lists
+rather than a scan. Common terms are cheap for the other reason too: reads go
+newest-first (or oldest-first) and stop at the limit. A substring search
+adds, for each run of four or more letters or digits in the pattern, a lookup
+of the dictionary for the tokens containing that run, and the bitmaps of
+those tokens narrow the read before the exact pattern is checked.
+
+Until 2026-09-11 the same job was done by two bloom-filter skip indexes (one
+per granule of 8192 rows, about an hour of news, over the words and one over
+the trigrams). Those can only say that an hour certainly lacks a word, and
+can only intersect two words at the level of an hour, so a rare combination
+of common words ("raleigh charter", "kenny felder") left most of the archive
+to scan and timed out. The text index replaced them; the session doc of that
+day in the root repo has the measurements.
+
+What no title index can do is prune on a source, so a source filter is
+served by a projection instead: a second copy of the rows ordered by
+(domain, ts), which ClickHouse picks whenever the query names a domain, so
+"hurricane" on irishtimes.com reads that site's rows and nothing else. Its
+price is the disk, about as much again as the table. The Worker turns
 projections on only for a query with a source: left to itself ClickHouse
 also picked the projection for every whole-archive search, since in its lazy
 skip-index mode the table looks like a full scan and the projection has
 slightly fewer marks, and then it could not read newest-first and scanned
 until the limit.
 
-Two shapes are still slow. A substring made of common trigrams ("nenagh" as
-a substring; as a word it is instant) scans until it finds a hundred and can
-hit the 20-second limit over the whole archive; the page then offers the
-last twelve months, or whole words. And a word with fewer than a hundred
-matches in the whole archive has nothing to stop the read early, so every
-granule's token filter is decompressed: 1.8 GB, about four seconds when it
-is in memory and fifteen when it is not. Word mode tells ClickHouse to
-ignore the trigram filter, which the LIKE would otherwise drag in for
-another gigabyte and no extra pruning.
+Still slow: a substring pattern with no run of four letters or digits, or
+whose runs occur inside more than fifty distinct tokens while the pattern
+itself is rare, scans until it finds a hundred and can hit the 20-second
+limit over the whole archive; the page then offers the last twelve months,
+or whole words.
 
-Measured 2026-09-11 with the full corpus, 325M rows and 27 GB, on the same
-box: a common word over the whole range 0.4 to 1.5 s from cold; a rare word
+Measured 2026-09-11 with the text index, after a merge of the table to one
+part per month (84 parts), live through the Worker on the same box (2 vCPU,
+4 GB): "raleigh charter" (41 matches, both words common) 0.6 s oldest-first
+over the whole archive, 0.9 s with the server's caches dropped and 0.2 s
+warm; a word with no matches 0.5 s cold; "cricket" newest-first 0.6 s cold;
+"nenagh" 0.8 to 1.2 s; page 50 of "cricket" 1.3 to 1.8 s; a six-month count
+window 0.2 to 0.6 s ("election" in 2024, 233k matches, 0.6 s); "hurricane"
+on irishtimes.com 2.7 to 3.9 s, and any source filter about 2 s at least,
+which is the projection's floor of one read per part plus folding that
+site's titles; substring "nenagh" 1.0 s (1.8 cold), substring "raleigh
+charter" 2.8 s (3.6 cold), "zelensk", "qatar" and "ovid" 0.2 to 0.4 s; "el
+nino" and "el niño" the same hundred rows in 0.3 s. On disk the table is
+27 GB, the projection 28 GB and the text index 7.6 GB, with 14 GB of the
+80 GB free. The merge took an hour and the index rebuild twenty minutes,
+with the site slow throughout; the per-partition merge needed the retention
+of replaced parts shortened (`old_parts_lifetime`) and a pause under 6 GB
+free, since replaced parts are only cleaned up every five minutes.
+
+Measured 2026-09-11 before the text index, with the full corpus, 325M rows
+and 27 GB, on the same box: a common word over the whole range 0.4 to 1.5 s from cold; a rare word
 ("nenagh", 1,883 matches) 6 s cold and 3 warm; a word with no matches
 anywhere 12 to 15 s, or 4 when the token index happens to be in memory,
 which on this box it rarely is; a six-month count window 2 to 9 s; page 50
@@ -143,8 +178,9 @@ through a Cloudflare quick tunnel, for demos before there is a server.
 ## Costs
 
 - VPS: whatever runs ClickHouse comfortably. 4 GB of RAM works for a single
-  user; 8 GB is comfortable. Around 40 GB of disk for the database and its
-  merges.
+  user; 8 GB is comfortable. Around 70 GB of disk: the table, its projection
+  (as much again), the text index (about a gigabyte per year of rows) and
+  room for merges.
 - R2: about 24 GB of extracts, under $1 a month. No egress charges, so the
   server can be rebuilt from R2 for free.
 - Cloudflare Workers: free tier.

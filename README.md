@@ -87,7 +87,12 @@ limit. What the filters cannot do is prune on a combination, so a source
 filter is served by a projection instead: a second copy of the rows ordered
 by (domain, ts), which ClickHouse picks whenever the query names a domain,
 so "hurricane" on irishtimes.com reads that site's rows and nothing else.
-Its price is the disk, about as much again as the table.
+Its price is the disk, about as much again as the table. The Worker turns
+projections on only for a query with a source: left to itself ClickHouse
+also picked the projection for every whole-archive search, since in its lazy
+skip-index mode the table looks like a full scan and the projection has
+slightly fewer marks, and then it could not read newest-first and scanned
+until the limit.
 
 Two shapes are still slow. A substring made of common trigrams ("nenagh" as
 a substring; as a word it is instant) scans until it finds a hundred and can
@@ -102,11 +107,15 @@ another gigabyte and no extra pruning.
 Measured 2026-09-11 with the full corpus, 325M rows and 27 GB, on the same
 box: a common word over the whole range 0.4 to 1.5 s from cold; a rare word
 ("nenagh", 1,883 matches) 6 s cold and 3 warm; a word with no matches
-anywhere 14.5 s cold, 4 warm; a six-month count window 2 to 9 s; every
-source-filtered search over the whole archive timed out before the
-projection and takes 0.2 to 0.4 s with it, from cold. The three skip
-indexes come to 2.9 GB on disk, more than the box can keep in memory next
-to the data, which is the cold-versus-warm gap.
+anywhere 12 to 15 s, or 4 when the token index happens to be in memory,
+which on this box it rarely is; a six-month count window 2 to 9 s; page 50
+of a common word 13 to 15 s. Every source-filtered search over the whole
+archive timed out before the projection and takes 2 to 5 s with it, cold or
+warm, most of that a floor of one granule per part (575 parts) rather than
+the site's rows; a count with a source 0.2 s. The three skip indexes come
+to 2.9 GB on disk, more than the box can keep in memory next to the data,
+which is the cold-versus-warm gap. The projection took 17 minutes to build
+and made the site slow for that long: the build saturated the disk.
 
 Measured 2026-09-10 on the Lightsail box (2 vCPU, 4 GB) with 63M rows loaded
 and the backfill inserting: a full scan of the titles ran at 4.5M rows a

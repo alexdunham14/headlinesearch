@@ -140,9 +140,16 @@ function where(q, params) {
 }
 
 // Word mode is answered by the token index; a source filter by the by_domain
-// projection. Only substring mode needs the trigram index.
+// projection. Only substring mode needs the trigram index. Projections are
+// switched on only for a source filter: left to itself ClickHouse picks
+// by_domain for every whole-archive search, because in its lazy skip-index
+// mode the table looks like a full scan and the projection has slightly fewer
+// marks, and then it cannot read newest-first and scans until the limit
+// (measured 2026-09-11: "cricket" went from 1 s to a timeout).
 function settings(q, extra) {
-  return { ...extra, ...(q.mode === "word" ? { ignore_data_skipping_indices: "title_ngram" } : {}) };
+  const s = { ...extra, optimize_use_projections: q.domain ? 1 : 0 };
+  if (q.mode === "word") s.ignore_data_skipping_indices = "title_ngram";
+  return s;
 }
 
 async function runSearch(env, q) {

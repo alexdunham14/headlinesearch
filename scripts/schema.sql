@@ -30,7 +30,12 @@
 -- nothing else. The bloom filters cannot do that: a big site is in nearly
 -- every granule, and on 2026-09-11 every source-filtered search over the
 -- whole archive timed out. It costs as much disk as the table (about 27 GB
--- at 325M rows) and every insert and merge writes the rows twice.
+-- at 325M rows) and every insert and merge writes the rows twice. One trap:
+-- ClickHouse also picks it for a search with no domain at all, since in its
+-- lazy skip-index mode the table looks like a full scan and the projection
+-- has slightly fewer marks; it then cannot read in time order and scans
+-- until the limit. The Worker sends optimize_use_projections=0 unless the
+-- query names a domain. Do the same in any query run by hand.
 --
 -- non_replicated_deduplication_window: an INSERT whose block is identical to
 -- one of the last 1000 inserted blocks is silently dropped, a second guard

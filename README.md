@@ -13,9 +13,10 @@ turned up in the news, or what a particular outlet headlined that week.
 - A page with one search box, a word/substring toggle, a newest/oldest-first
   toggle, a date range, an optional domain, and a plain list of results: date,
   headline, domain, link, with the matched words marked. A page is a hundred
-  distinct headlines: copies of a headline (a story on many sites, or on one
-  site's many local editions) collapse into one line with a count and the
-  number of sites. A source or a
+  distinct stories: copies of a headline (a story on many sites, or on one
+  site's many local editions, with or without the site's own label after a
+  pipe or a dash) collapse into one line with a count and the number of
+  sites. A source or a
   month in the count can be clicked to narrow the search. The page says what
   is loaded (first and last day, row count). The URL carries the query so a
   search can be linked to.
@@ -30,10 +31,18 @@ turned up in the news, or what a particular outlet headlined that week.
   otherwise it scans and can hit the 20-second limit over the whole archive,
   in which case the page says so and offers whole-word search or the last
   twelve months instead. Counting matches by month runs in twelve-month
-  windows and draws the chart as they arrive, about a second a window.
+  windows and draws the chart as they arrive, about a second a window, and
+  gives three counts a month: stories (a headline's first appearance
+  anywhere in a week), outlets (its first appearance on each site) and
+  articles (every page), so that a story copied to a hundred pages of one
+  radio group is one story and one outlet, and a wire story on three
+  hundred local sites is one story and three hundred outlets. The bars
+  show one measure, chosen under the chart; the note and the table give
+  all three.
 - The database is fed by a scheduled ingest that reads GDELT's master file
-  list, downloads new GKG files, keeps only date, source, URL and title, and
-  inserts them. It is idempotent and resumable: re-running never duplicates rows
+  list, downloads new GKG files, keeps only date, source, URL and title,
+  flags each row as a story, an outlet's copy or a repeat, and inserts
+  them. It is idempotent and resumable: re-running never duplicates rows
   and never re-downloads a file it has already processed.
 - The extracted rows are also written to R2 as gzipped TSV, one object per GKG
   file. That is the archive. The database can be rebuilt from it with one SQL
@@ -120,6 +129,31 @@ can only intersect two words at the level of an hour, so a rare combination
 of common words ("raleigh charter", "kenny felder") left most of the archive
 to scan and timed out. The text index replaced them; the session doc of that
 day in the root repo has the measurements.
+
+**Stories, outlets, articles.** A headline reaches the archive many times
+over: a wire story on three hundred local sites, a radio group's story on
+each of its seven hundred station pages, a newspaper group's story under
+each masthead. Every row carries a one-byte `copy` flag, set by the
+ingest from the row's story key and the seven days before it: 0 for the
+first sighting of the key anywhere (a story), 1 for the first sighting on
+that domain of a key seen elsewhere before (an outlet's copy), 2 for a
+repeat on the same domain. The key is the title with a known site label
+cut off, where a label is what follows the last " | ", " - ", " – " or
+" — " when that domain has used the same tail on twenty or more titles
+("| Sunny 102.3 FM", "- Jamaica Observer", "| Opinion"); a headline's own
+second half does not recur twenty times on one site, so it is left alone,
+and `title` itself stays as GDELT recorded it. `story_key()` is a SQL
+function in the database (scripts/schema.sql), so the ingest, the
+one-off backfill and the Worker's searches agree; `scripts/copyflag.py`
+explains the rule, builds the label table and rebuilt the archive on
+2026-09-12 (in August 2026, 58% of rows were stories, 30% outlets'
+copies, 12% same-site repeats; iHeart's 218,853 rows were 7,972 stories).
+The counts are then `countIf(copy = 0)`, `countIf(copy <= 1)` and
+`count()`, all answered from the text index plus the flag column (a month
+of "trump" in 0.14 s). Two limits: outlets rewrite wire headlines, so
+"stories" overcounts by the rewrites, a consistent overcount a trend can
+live with; and the week is a choice, so a title that comes back after a
+quiet week is a story again.
 
 What no title index can do is prune on a source, so a source filter is
 served by a projection instead: a second copy of the rows ordered by

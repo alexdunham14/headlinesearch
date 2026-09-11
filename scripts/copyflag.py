@@ -196,6 +196,11 @@ def backfill():
         ch("ALTER TABLE headlines DROP PROJECTION IF EXISTS by_domain")
         ch("ALTER TABLE headlines ADD PROJECTION by_domain (SELECT ts, domain, url, title, copy ORDER BY (domain, ts))")
     ch("CREATE TABLE IF NOT EXISTS headlines_new AS headlines")
+    # Writing a part builds its text index in memory, flushing at a gigabyte
+    # by default; a quarter of that here (a table setting, not part of the
+    # structure REPLACE PARTITION compares). The second try ran out of
+    # memory in exactly that build.
+    ch("ALTER TABLE headlines_new MODIFY SETTING text_index_max_memory_usage_before_flush = 268435456")
     ch("ALTER TABLE headlines MODIFY SETTING old_parts_lifetime = 60")
     # A merge rebuilds the text index of the merged part with up to a
     # gigabyte of its own; none while the rebuild runs. Partitions come out
@@ -216,7 +221,8 @@ def backfill():
             t = time.time()
             ch(f"ALTER TABLE headlines_new DROP PARTITION {p}")
             start, end = bounds(p)
-            ch(f"INSERT INTO headlines_new (ts, domain, url, title, copy) {backfill_select(start, end)}", {**HEAVY, "max_insert_threads": 1})
+            ch(f"INSERT INTO headlines_new (ts, domain, url, title, copy) {backfill_select(start, end)}",
+               {**HEAVY, "max_memory_usage": 2000000000, "max_insert_threads": 1, "min_insert_block_size_rows": 500000, "min_insert_block_size_bytes": 300000000})
             n = ch(f"SELECT count() FROM headlines_new WHERE toYYYYMM(ts) = {p}").strip()
             m = ch(f"SELECT count() FROM headlines WHERE toYYYYMM(ts) = {p}").strip()
             if n != m:

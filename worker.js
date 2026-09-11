@@ -4,16 +4,19 @@
 // static asset. Nothing a visitor sends ever reaches ClickHouse as SQL.
 //
 // Secrets: CH_URL (e.g. http://db.example.com:8123; a hostname, not a bare
-// IP, which Cloudflare refuses with error 1003), CH_PASSWORD. Binding:
+// IP, which Cloudflare refuses with error 1003), CH_PASSWORD (the `search`
+// user, who reads `headlines` and `labels`). Binding:
 // SEARCH_LIMIT (rate limit per IP, see wrangler.jsonc: 120 a minute, where a
 // search with its chart is eight requests; the page retries what is refused).
 
-// A page is PAGE distinct headlines. The database returns rows (one per
+// A page is PAGE distinct stories. The database returns rows (one per
 // article URL), and a story syndicated to many sites, or to one site's many
-// local editions, is the same title over and over: the Worker collapses
-// identical titles and, when more than half of a hundred rows collapsed,
-// looks at up to WINDOW rows for that page instead. Pages continue from a
-// timestamp cursor rather than a row offset (see runSearch).
+// local editions, is the same headline over and over, sometimes with the
+// site's own label after a pipe or a dash: the Worker collapses rows with
+// the same story key (story_key() in scripts/schema.sql: the title with a
+// known site label cut off) and, when more than half of a hundred rows
+// collapsed, looks at up to WINDOW rows for that page instead. Pages
+// continue from a timestamp cursor rather than a row offset (see runSearch).
 const PAGE = 100;
 const WINDOW = 1000;
 const MAX_SKIP = 10000;
@@ -212,9 +215,9 @@ function settings(q, extra) {
   return s;
 }
 
-// A page: rows newest-first (or oldest-first) from the cursor, identical
-// titles collapsed in order of first appearance, the first PAGE distinct
-// titles kept. Reading in key order and stopping at the limit is what makes
+// A page: rows newest-first (or oldest-first) from the cursor, rows with
+// the same story key collapsed in order of first appearance, the first PAGE
+// stories kept. Reading in key order and stopping at the limit is what makes
 // a search cheap, so the collapse happens here rather than in the database:
 // LIMIT 1 BY title would make ClickHouse read the title of every candidate
 // row instead of the final hundred (measured 2026-09-11: five to twenty
@@ -235,8 +238,9 @@ async function runSearch(env, q) {
     conds += q.sort === "oldest" ? " AND ts >= {cursor:DateTime}" : " AND ts <= {cursor:DateTime}";
     params.cursor = q.cursor;
   }
-  const sql = `SELECT ts, domain, url, title FROM headlines WHERE ${conds}
-    ORDER BY ts ${q.sort === "oldest" ? "ASC" : "DESC"} LIMIT {limit:UInt32} OFFSET {offset:UInt32} FORMAT JSON`;
+  // The key is computed outside the limited query, for the page's rows only.
+  const sql = `SELECT ts, domain, url, title, story_key(domain, title) AS key FROM (SELECT ts, domain, url, title FROM headlines WHERE ${conds}
+    ORDER BY ts ${q.sort === "oldest" ? "ASC" : "DESC"} LIMIT {limit:UInt32} OFFSET {offset:UInt32}) FORMAT JSON`;
   let r = await clickhouse(env, sql, params, settings(q, { max_execution_time: TIME_LIMIT }));
   let elapsed = r.statistics.elapsed;
   let page = collapse(r.data, PAGE);
@@ -257,20 +261,21 @@ async function runSearch(env, q) {
   return { rows: page.groups, used: page.used, next, elapsed, timedOut: r.statistics.elapsed >= TIME_LIMIT };
 }
 
-// Collapse rows with the same title into one, in order of first appearance,
-// up to `want` distinct titles; `used` is how many rows that took, which is
-// where the next page starts.
+// Collapse rows with the same story key into one, in order of first
+// appearance, up to `want` stories; `used` is how many rows that took, which
+// is where the next page starts. The first copy's title is the one shown.
 function collapse(rows, want) {
   const groups = [];
   const seen = new Map();
   let used = 0;
   for (const row of rows) {
-    let g = seen.get(row.title);
+    const key = row.key ?? row.title;
+    let g = seen.get(key);
     if (!g) {
       if (groups.length === want) break;
       g = { ts: row.ts, domain: row.domain, url: row.url, title: row.title, n: 0, sites: new Set() };
       groups.push(g);
-      seen.set(row.title, g);
+      seen.set(key, g);
     }
     g.n++;
     g.sites.add(row.domain);
@@ -279,13 +284,18 @@ function collapse(rows, want) {
   return { groups: groups.map((g) => ({ ...g, sites: g.sites.size })), used };
 }
 
+// Three counts a month from the copy flag (scripts/schema.sql): stories are
+// first sightings (copy = 0), outlets first sightings per site (copy <= 1),
+// articles every row. With a source, "stories" means that site's own first
+// sightings (copy <= 1), since whether it was first anywhere is a different
+// question; the page then does not offer outlets, which would be the same.
 async function runCount(env, q) {
   const params = {};
-  const sql = `SELECT toStartOfMonth(ts) AS month, count() AS n FROM headlines WHERE ${where(q, params)}
-    GROUP BY month ORDER BY month FORMAT JSON`;
+  const sql = `SELECT toStartOfMonth(ts) AS month, countIf(copy <= ${q.domain ? 1 : 0}) AS stories, countIf(copy <= 1) AS outlets, count() AS articles
+    FROM headlines WHERE ${where(q, params)} GROUP BY month ORDER BY month FORMAT JSON`;
   const r = await clickhouse(env, sql, params, settings(q, { max_execution_time: TIME_LIMIT, timeout_overflow_mode: "break" }));
   const partial = r.statistics.elapsed >= TIME_LIMIT;
-  return { months: r.data.map((x) => [x.month, Number(x.n)]), elapsed: r.statistics.elapsed, partial };
+  return { months: r.data.map((x) => [x.month, Number(x.stories), Number(x.outlets), Number(x.articles)]), elapsed: r.statistics.elapsed, partial };
 }
 
 async function clickhouse(env, sql, params, settings) {

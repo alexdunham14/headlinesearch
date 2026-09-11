@@ -45,6 +45,15 @@
 -- until the limit. The Worker sends optimize_use_projections=0 unless the
 -- query names a domain. Do the same in any query run by hand.
 --
+-- copy is the syndication flag, one byte a row, set by the ingest from the
+-- row's story key (the title with its site label cut off, see story_key
+-- below) and the seven days before it: 0 = the first sighting of the story
+-- anywhere, 1 = the first sighting on this domain of a story seen elsewhere,
+-- 2 = a repeat on the same domain. countIf(copy = 0) counts stories,
+-- countIf(copy <= 1) outlets, count() articles. scripts/copyflag.py explains
+-- the rule, builds the labels and backfilled the column on 2026-09-12. The
+-- projection carries it so that a source-filtered count can use it.
+--
 -- non_replicated_deduplication_window: an INSERT whose block is identical to
 -- one of the last 1000 inserted blocks is silently dropped, a second guard
 -- against duplicates after the files table.
@@ -54,9 +63,10 @@ CREATE TABLE IF NOT EXISTS headlines (
   domain String CODEC(ZSTD(3)),
   url    String CODEC(ZSTD(3)),
   title  String CODEC(LZ4),
+  copy   UInt8,
   INDEX tx replaceAll(replaceAll(replaceAll(translateUTF8(replaceRegexpAll(normalizeUTF8NFD(lowerUTF8(toValidUTF8(title))), '\\p{Mn}', ''), 'łøđħŧı', 'lodhti'), 'ß', 'ss'), 'æ', 'ae'), 'œ', 'oe') TYPE text(tokenizer = 'splitByNonAlpha'),
   INDEX domain_bf domain TYPE bloom_filter(0.01) GRANULARITY 1,
-  PROJECTION by_domain (SELECT ts, domain, url, title ORDER BY (domain, ts))
+  PROJECTION by_domain (SELECT ts, domain, url, title, copy ORDER BY (domain, ts))
 )
 ENGINE = MergeTree
 PARTITION BY toYYYYMM(ts)
@@ -76,3 +86,36 @@ CREATE TABLE IF NOT EXISTS files (
 )
 ENGINE = ReplacingMergeTree(done)
 ORDER BY ts;
+
+-- Site labels: (domain, tail) pairs where the domain has used the tail (what
+-- follows the last " | ", " - ", " – " or " — " of a title) on at least
+-- twenty of its titles over the archive. Built by scripts/copyflag.py
+-- labels; a few hundred thousand pairs. The `search` user reads it too,
+-- since story_key is evaluated in searches to collapse copies.
+CREATE TABLE IF NOT EXISTS labels (
+  domain String,
+  tail   String,
+  n      UInt64
+)
+ENGINE = MergeTree
+ORDER BY (domain, tail);
+
+-- The staging table for one ingest batch: rows go in here first, come out
+-- flagged (scripts/copyflag.py ingest_select) and are inserted into
+-- headlines. Truncated around every batch.
+CREATE TABLE IF NOT EXISTS incoming (
+  ts     DateTime('UTC'),
+  domain String,
+  url    String,
+  title  String
+)
+ENGINE = Memory;
+
+-- story_key(domain, title): the title with a known site label cut off, twice
+-- over for "headline | section | site"; the title itself when its tail is
+-- not a label of that domain. One implementation for the ingest, the
+-- backfill and the Worker's searches. The pipe, the en dash and the em dash
+-- are written as re2 escapes so that nothing on the way here turns them
+-- into hyphens.
+CREATE OR REPLACE FUNCTION strip_label AS (d, t) -> if(length(extractGroups(t, '^(.*) (\\||-|\\x{2013}|\\x{2014}) (.*)$')) = 3 AND (d, extractGroups(t, '^(.*) (\\||-|\\x{2013}|\\x{2014}) (.*)$')[3]) IN (SELECT domain, tail FROM labels), extractGroups(t, '^(.*) (\\||-|\\x{2013}|\\x{2014}) (.*)$')[1], t);
+CREATE OR REPLACE FUNCTION story_key AS (d, t) -> strip_label(d, strip_label(d, t));

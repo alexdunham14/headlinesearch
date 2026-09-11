@@ -53,6 +53,9 @@ input:focus-visible, .chip:focus-visible, .go:focus-visible { outline: 2px solid
 .years span { flex: 1 1 0; min-width: 0; }
 .years a { color: inherit; text-decoration: none; white-space: nowrap; }
 .years a:hover { text-decoration: underline; }
+.measure { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; margin: .5rem 0 .6rem; }
+.measure .note { margin: 0; flex: 1 1 18rem; }
+.tbl th { font: .72rem/1.4 system-ui, sans-serif; letter-spacing: .09em; text-transform: uppercase; text-align: left; padding: 0 1rem .2rem 0; }
 .tbl { font-size: .85rem; color: var(--muted); }
 .tbl summary { cursor: pointer; }
 .tbl table { border-collapse: collapse; margin-top: .4rem; }

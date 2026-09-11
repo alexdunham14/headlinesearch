@@ -62,6 +62,14 @@
     <p class="note" id="months-note"></p>
     <div class="chart" id="chart"></div>
     <div class="years" id="years"></div>
+    <p class="measure"><span class="lbl">bars</span>
+      <span class="seg" id="measures">
+        <label><input type="radio" name="measure" value="stories" checked><span>stories</span></label>
+        <label id="measure-outlets"><input type="radio" name="measure" value="outlets"><span>outlets</span></label>
+        <label><input type="radio" name="measure" value="articles"><span>articles</span></label>
+      </span>
+      <span class="note">A story is a headline's first appearance anywhere in a week; an outlet, its first appearance on each site; an article, every page that carried it.</span>
+    </p>
     <details class="tbl"><summary>as a list</summary><table id="months-table"></table></details>
   </section>
   <h2 id="list-h" hidden>Headlines</h2>

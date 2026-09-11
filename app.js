@@ -17,8 +17,13 @@
   let wantCount = false; // ?count=1 in the URL: show the chart too, so it can be linked to
   // What the database holds, from /api/stats; the chart's span and the date pickers' bounds.
   let loaded = { first: "2019-10-01", last: day(new Date()) };
-  // The month chart for the current term: counts per "YYYY-MM", filled in window by window.
+  // The month chart for the current term: per "YYYY-MM" a triple [stories,
+  // outlets, articles] (see renderChart), filled in window by window; the
+  // bars show the measure chosen under the chart.
   let chart = null;
+  const MEASURES = ["stories", "outlets", "articles"];
+  let measure = "stories";
+  const setMeasure = m => { measure = MEASURES.includes(m) ? m : "stories"; document.querySelector(`input[name=measure][value=${measure}]`).checked = true; };
 
   function params() {
     const p = new URLSearchParams();
@@ -45,6 +50,7 @@
     cursor = p.get(at) ? { [at]: p.get(at), skip: p.get("skip") || 0 } : null;
     page = cursor ? Math.max(2, parseInt(p.get("page") || "2", 10) || 2) : 1;
     wantCount = p.get("count") === "1";
+    setMeasure(p.get("measure"));
     linkDates();
     return true;
   }
@@ -207,8 +213,8 @@
       let r;
       try { r = await fetch("/api/count?" + q).then(res => res.json()); } catch (e) { r = { error: "count failed" }; }
       if (chart.key !== key || r.error) return r;
-      for (const m of w) chart.counts.set(m, 0);
-      for (const [m, n] of r.months) chart.counts.set(m.slice(0, 7), n);
+      for (const m of w) chart.counts.set(m, [0, 0, 0]);
+      for (const [m, s, o, a] of r.months) chart.counts.set(m.slice(0, 7), [s, o, a]);
       if (r.partial) for (const m of w) chart.partial.add(m);
       return r;
     };
@@ -237,38 +243,53 @@
     renderChart(p);
   }
 
+  // Three counts a month, from the copy flag the database keeps per row:
+  // stories (a headline's first appearance anywhere in a week), outlets (its
+  // first appearance on each site) and articles (every page). The bars show
+  // one; the note, the bar titles and the table give all three. With a
+  // source, stories are that site's own first sightings and outlets would
+  // be the same number, so it is not offered.
   function renderChart(p) {
     const months = monthList();
     const c = chart.counts;
+    const single = !!p.get("domain");
+    if (single && measure === "outlets") setMeasure("stories");
+    $("measure-outlets").hidden = single;
+    const k = MEASURES.indexOf(measure);
     const from = p.get("from") || loaded.first, to = p.get("to") || loaded.last;
     const narrowed = p.get("from") || p.get("to");
-    let total = 0, max = 1, peak = null, first = null, last = null;
+    const total = [0, 0, 0];
+    let max = 1, peak = null, first = null, last = null;
     for (const m of months) {
-      const n = c.get(m);
-      if (n == null) continue;
-      total += n;
-      if (n > max) { max = n; peak = m; }
-      if (n && !first) first = m;
-      if (n) last = m;
+      const v = c.get(m);
+      if (v == null) continue;
+      for (let i = 0; i < 3; i++) total[i] += v[i];
+      if (v[k] > max) { max = v[k]; peak = m; }
+      if (v[2] && !first) first = m;
+      if (v[2]) last = m;
     }
+    const fmt = n => n.toLocaleString();
+    const triple = single ? `${fmt(total[0])} stories in ${fmt(total[2])} articles` : `${fmt(total[0])} stories, ${fmt(total[1])} outlets, ${fmt(total[2])} articles`;
     let note;
-    if (chart.running && chart.wait) note = `${total.toLocaleString()} so far; too many requests from here in a minute, so the rest wait ${chart.wait} s…`;
-    else if (chart.running) note = `${total.toLocaleString()} so far; counting ${chart.now ? `${fmtMonth(chart.now[0])} to ${fmtMonth(chart.now[chart.now.length - 1])}` : ""}…`;
-    else if (!total) note = chart.failed ? "The count could not be completed." : "No matching articles in any month.";
-    // Articles, not headlines: the count is of rows, one per article URL, copies included.
-    else note = `${total.toLocaleString()} matching article${total === 1 ? "" : "s"}, ${fmtMonth(first)} to ${fmtMonth(last)}, most in ${fmtMonth(peak)} (${max.toLocaleString()}).`;
+    if (chart.running && chart.wait) note = `${fmt(total[k])} ${measure} so far; too many requests from here in a minute, so the rest wait ${chart.wait} s…`;
+    else if (chart.running) note = `${fmt(total[k])} ${measure} so far; counting ${chart.now ? `${fmtMonth(chart.now[0])} to ${fmtMonth(chart.now[chart.now.length - 1])}` : ""}…`;
+    else if (!total[2]) note = chart.failed ? "The count could not be completed." : "No matching articles in any month.";
+    else note = `${triple}, ${fmtMonth(first)} to ${fmtMonth(last)}${peak ? `, most ${measure} in ${fmtMonth(peak)} (${fmt(max)})` : ""}.`;
     if (!chart.running && chart.partial.size) note += " Months marked ~ hit the time limit, so their counts are low.";
     if (!chart.running && chart.failed) note += ` ${chart.failed} window${chart.failed === 1 ? "" : "s"} could not be counted${chart.limited ? " (too many searches from here in a minute; search again in a minute to fill them in)" : ""}.`;
-    if (!chart.running && total) note += " Click a month or a year to narrow the search to it.";
+    if (!chart.running && total[2]) note += " Click a month or a year to narrow the search to it.";
     $("months-note").textContent = note;
+    const each = v => single ? `${fmt(v[0])} stories, ${fmt(v[2])} articles` : `${fmt(v[0])} stories, ${fmt(v[1])} outlets, ${fmt(v[2])} articles`;
     $("chart").innerHTML = months.map(m => {
-      const n = c.get(m);
+      const v = c.get(m);
       const sel = narrowed && from <= m + "-01" && to >= monthEnd(m);
-      const label = n == null ? "not counted yet" : `${n.toLocaleString()}${chart.partial.has(m) ? " (partial)" : ""}`;
-      return `<a href="#" class="${sel ? "sel" : ""}" data-month="${m}" title="${fmtMonth(m)}: ${label}"><i style="height:${n ? Math.max(1.5, n / max * 100).toFixed(1) : 0}%"></i></a>`;
+      const label = v == null ? "not counted yet" : `${each(v)}${chart.partial.has(m) ? " (partial)" : ""}`;
+      return `<a href="#" class="${sel ? "sel" : ""}" data-month="${m}" title="${fmtMonth(m)}: ${label}"><i style="height:${v && v[k] ? Math.max(1.5, v[k] / max * 100).toFixed(1) : 0}%"></i></a>`;
     }).join("");
     $("years").innerHTML = months.map(m => `<span>${m.endsWith("-01") ? `<a href="#" data-year="${m.slice(0, 4)}">${m.slice(0, 4)}</a>` : ""}</span>`).join("");
-    $("months-table").innerHTML = months.filter(m => c.get(m)).map(m => `<tr><td><a href="#" data-month="${m}">${fmtMonth(m)}</a></td><td>${chart.partial.has(m) ? "~" : ""}${c.get(m).toLocaleString()}</td></tr>`).join("");
+    const cols = single ? [0, 2] : [0, 1, 2];
+    $("months-table").innerHTML = `<tr><th></th>${cols.map(i => `<th>${MEASURES[i]}</th>`).join("")}</tr>` + months.filter(m => c.get(m)?.[2]).map(m =>
+      `<tr><td><a href="#" data-month="${m}">${fmtMonth(m)}</a></td>${cols.map(i => `<td>${chart.partial.has(m) ? "~" : ""}${fmt(c.get(m)[i])}</td>`).join("")}</tr>`).join("");
   }
 
   // Facets: a source in the list, a month or a year in the chart, each narrows the search.
@@ -284,11 +305,17 @@
     search(true);
     if (a.dataset.domain) $("out").scrollIntoView();
   });
+  const chartUrl = p => { p.set("count", "1"); if (measure !== "stories") p.set("measure", measure); else p.delete("measure"); history.replaceState(null, "", "?" + p); };
   $("count").onclick = () => {
     const p = params();
-    history.replaceState(null, "", "?" + p + "&count=1");
+    chartUrl(p);
     count(p);
   };
+  $("measures").addEventListener("change", ev => {
+    setMeasure(ev.target.value);
+    const p = params();
+    if (chart) { chartUrl(p); renderChart(p); }
+  });
 
   // What is loaded: the intro sentence, the chart's span and the date pickers' bounds.
   const statsReady = fetch("/api/stats").then(res => res.json()).then(s => {

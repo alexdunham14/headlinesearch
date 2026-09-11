@@ -5,8 +5,12 @@ For every GKG file the database has not seen (per the `files` table):
 download it (or read it from --from-dir), check its MD5 against the master
 list, keep date / source domain / URL / page title from each row, write the
 rows to R2 as headlines/YYYY/MM/DD/<ts>.tsv.gz, insert them into ClickHouse,
-and record the file. Newest files first, so an interrupted backfill leaves
-the most useful part of the corpus in place.
+and record the file. Each batch goes through the `incoming` staging table
+and comes out with its copy flag (scripts/copyflag.py: 0 a story's first
+sighting, 1 its first sighting on this site, 2 a repeat on the same site),
+worked out from the batch and the seven days already in the table, which is
+why files go in oldest first; --newest-first is for a backfill whose flags
+will be rebuilt afterwards.
 
 Idempotent: a file recorded in `files` is skipped; an insert whose block is
 identical to a recent one is dropped by ClickHouse anyway. Resumable: stop it
@@ -33,6 +37,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import copyflag  # noqa: E402
 
 MASTER_URL = "https://data.gdeltproject.org/gdeltv2/masterfilelist.txt"
 FIRST_TS = "20191001000000"  # PAGE_TITLE appears in GKG from late September 2019
@@ -251,7 +258,16 @@ class Batch:
 
     def _insert(self, items, tsv):
         if tsv:
-            ch("INSERT INTO headlines (ts, domain, url, title) FORMAT TSV", tsv.encode(), {"async_insert": 0})
+            # In through the staging table, out again flagged and ordered, so a
+            # retried batch is the same bytes and the deduplication window
+            # drops it. The look-back starts at the batch's earliest file.
+            first = min(item[0] for item in items if item[2])
+            first = f"{first[0:4]}-{first[4:6]}-{first[6:8]} {first[8:10]}:{first[10:12]}:{first[12:14]}"
+            ch("TRUNCATE TABLE incoming")
+            ch("INSERT INTO incoming (ts, domain, url, title) FORMAT TSV", tsv.encode(), {"async_insert": 0})
+            flagged = ch(copyflag.ingest_select(first) + " FORMAT TSV", settings=copyflag.HEAVY)
+            ch("INSERT INTO headlines (ts, domain, url, title, copy) FORMAT TSV", flagged.encode(), {"async_insert": 0})
+            ch("TRUNCATE TABLE incoming")
         lines = []
         for ts, status, tsv, size in items:
             t = f"{ts[0:4]}-{ts[4:6]}-{ts[6:8]} {ts[8:10]}:{ts[10:12]}:{ts[12:14]}"
@@ -264,7 +280,7 @@ def main():
     ap.add_argument("--from-dir", help="read <ts>.gkg.csv.zip files from this directory instead of downloading")
     ap.add_argument("--max-files", type=int, default=0, help="stop after this many files (0 = all)")
     ap.add_argument("--workers", type=int, default=4)
-    ap.add_argument("--oldest-first", action="store_true")
+    ap.add_argument("--newest-first", action="store_true", help="for a backfill; the copy flags of such a run are wrong until rebuilt")
     ap.add_argument("--no-r2", action="store_true", help="do not write extracts to R2")
     ap.add_argument("--retry-missing", action="store_true", help="try files previously recorded as missing")
     ap.add_argument("--since", default=FIRST_TS, help="ignore files before this YYYYMMDDHHMMSS")
@@ -299,7 +315,7 @@ def main():
         if not use_r2:
             ap.error("--archive-only needs R2")
         skip = set()
-    queue = sorted((ts for ts in todo if ts not in skip and args.since <= ts <= args.until), reverse=not args.oldest_first)
+    queue = sorted((ts for ts in todo if ts not in skip and args.since <= ts <= args.until), reverse=args.newest_first)
     if args.max_files:
         queue = queue[: args.max_files]
     print(f"{len(todo)} files known, {len(done)} done, {len(queue)} to do", flush=True)

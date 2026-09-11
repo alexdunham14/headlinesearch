@@ -2,7 +2,7 @@
   "name": "headlinesearch",
   "main": "worker.js",
   "compatibility_date": "2026-09-01",
-  "assets": { "directory": ".", "not_found_handling": "404-page", "html_handling": "auto-trailing-slash" },
+  "assets": { "directory": ".", "binding": "ASSETS", "not_found_handling": "404-page", "html_handling": "auto-trailing-slash" },
   "workers_dev": true,
   "routes": [
     { "pattern": "newsheadlinesearch.com", "custom_domain": true },

@@ -8,7 +8,12 @@
   const day = d => d.toISOString().slice(0, 10);
   const plus = (s, n) => { const d = new Date(s + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return day(d); };
   const monthEnd = ym => { const [y, m] = ym.split("-").map(Number); return `${ym}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}`; };
+  // Paging: the Worker collapses identical headlines and returns where the
+  // page stopped (a timestamp and how many rows at it were shown); the next
+  // page asks from there. `page` is only a counter for the status line.
   let page = 1;
+  let cursor = null;
+  const reset = () => { page = 1; cursor = null; };
   let wantCount = false; // ?count=1 in the URL: show the chart too, so it can be linked to
   // What the database holds, from /api/stats; the chart's span and the date pickers' bounds.
   let loaded = { first: "2019-10-01", last: day(new Date()) };
@@ -23,6 +28,7 @@
     if ($("from").value) p.set("from", $("from").value);
     if ($("to").value) p.set("to", $("to").value);
     if ($("domain").value.trim()) p.set("domain", $("domain").value.trim());
+    if (cursor) { for (const [k, v] of Object.entries(cursor)) p.set(k, v); p.set("page", page); }
     return p;
   }
 
@@ -35,7 +41,9 @@
     $("from").value = p.get("from") || "";
     $("to").value = p.get("to") || "";
     $("domain").value = p.get("domain") || "";
-    page = Math.max(1, parseInt(p.get("page") || "1", 10) || 1);
+    const at = form.sort.value === "oldest" ? "after" : "before";
+    cursor = p.get(at) ? { [at]: p.get(at), skip: p.get("skip") || 0 } : null;
+    page = cursor ? Math.max(2, parseInt(p.get("page") || "2", 10) || 2) : 1;
     wantCount = p.get("count") === "1";
     linkDates();
     return true;
@@ -47,7 +55,6 @@
   async function search(push) {
     const p = params();
     if (p.get("q").length < 2) return;
-    if (page > 1) p.set("page", page);
     if (push) history.pushState(null, "", "?" + p);
     document.title = `${p.get("q")} - Headline Search`;
     $("examples").hidden = true;
@@ -125,39 +132,39 @@
   }
 
   function render(r, p) {
-    const rows = r.rows;
+    const rows = r.rows; // one per distinct headline, with n copies on `sites` sites
     const oldest = p.get("sort") === "oldest";
     const hl = highlighter(p);
-    // Collapse runs of identical headlines within the page, keeping the first link and a count.
-    const groups = [];
-    for (const row of rows) {
-      const last = groups[groups.length - 1];
-      if (last && last.title === row.title) { last.n++; last.domains.add(row.domain); }
-      else groups.push({ ...row, n: 1, domains: new Set([row.domain]) });
-    }
     const range = p.get("from") || p.get("to") ? ` between ${fmtDay(p.get("from") || loaded.first)} and ${fmtDay(p.get("to") || loaded.last)}` : "";
     if (!rows.length) {
       $("status").textContent = page > 1 ? "No more results." : `Nothing found${range}.`;
     } else {
       const a = fmtDay(rows[0].ts), b = fmtDay(rows[rows.length - 1].ts);
       const span = a === b ? `on ${a}` : `${a} ${oldest ? "forward" : "back"} to ${b}`;
-      const what = rows.length === 100 ? `${oldest ? "Oldest" : "Newest"} 100 results` : `${rows.length} result${rows.length === 1 ? "" : "s"}`;
+      const end = oldest ? "oldest" : "newest";
+      const n = rows.length, used = r.used.toLocaleString();
+      // "Newest 100 headlines from 316 matching articles": the rows behind
+      // the page, when copies collapsed. A page that stayed short even after
+      // the Worker looked further says how far it looked.
+      const what = r.next && n === 100 ? `${oldest ? "Oldest" : "Newest"} 100 headlines${r.used > n ? ` from ${used} matching articles` : ""}`
+        : r.next ? `${n} headlines from the ${end} ${used} matching articles`
+        : `${n} headline${n === 1 ? "" : "s"}${r.used > n ? ` from ${used} matching articles` : ""}`;
       $("status").textContent = `${what}${page > 1 ? ` (page ${page})` : ""}${p.get("domain") ? ` on ${p.get("domain")}` : ""}, ${span}, ${r.elapsed.toFixed(1)}s.`;
     }
-    $("count").hidden = !(page === 1 && (rows.length || chart));
+    $("count").hidden = !(rows.length || chart);
     $("count").classList.toggle("act", !chart);
     $("list-h").hidden = !chart;
     $("list-h").textContent = `Headlines, ${oldest ? "oldest" : "newest"} first`;
-    $("results").innerHTML = groups.map(g => `<li>
-      <a class="t" href="${esc(g.url)}" rel="nofollow noopener">${hl(g.title)}</a>${g.n > 1 ? ` <span class="n">×${g.n}</span>` : ""}
-      <span class="m"><span title="${esc(g.ts)} UTC">${fmtDay(g.ts)}</span> · <a href="#" data-domain="${esc(g.domain)}" title="Only ${esc(g.domain)}">${esc(g.domain)}</a>${g.n > 1 && g.domains.size > 1 ? ` +${g.domains.size - 1} more` : ""}</span>
+    $("results").innerHTML = rows.map(g => `<li>
+      <a class="t" href="${esc(g.url)}" rel="nofollow noopener">${hl(g.title)}</a>${g.n > 1 ? ` <span class="n" title="${g.n} copies of this headline${g.sites > 1 ? ` on ${g.sites} sites` : ""}">×${g.n}</span>` : ""}
+      <span class="m"><span title="${esc(g.ts)} UTC">${fmtDay(g.ts)}</span> · <a href="#" data-domain="${esc(g.domain)}" title="Only ${esc(g.domain)}">${esc(g.domain)}</a>${g.sites > 1 ? ` +${g.sites - 1} more` : ""}</span>
     </li>`).join("");
-    if (rows.length === 100 && page < 50) {
+    if (r.next) {
       $("more").innerHTML = `<a id="next">${oldest ? "newer" : "older"} results →</a>`;
-      $("next").onclick = () => { page++; search(true); $("out").scrollIntoView(); };
+      $("next").onclick = () => { cursor = r.next; page++; search(true); $("out").scrollIntoView(); };
     }
     if (chart) renderChart(p);
-    else if (wantCount && page === 1 && rows.length) { wantCount = false; count(p); }
+    else if (wantCount && rows.length) { wantCount = false; count(p); }
   }
 
   // ------------------------------------------------------------- the month chart
@@ -247,8 +254,9 @@
     let note;
     if (chart.running && chart.wait) note = `${total.toLocaleString()} so far; too many requests from here in a minute, so the rest wait ${chart.wait} s…`;
     else if (chart.running) note = `${total.toLocaleString()} so far; counting ${chart.now ? `${fmtMonth(chart.now[0])} to ${fmtMonth(chart.now[chart.now.length - 1])}` : ""}…`;
-    else if (!total) note = chart.failed ? "The count could not be completed." : "No matching headlines in any month.";
-    else note = `${total.toLocaleString()} matching headline${total === 1 ? "" : "s"}, ${fmtMonth(first)} to ${fmtMonth(last)}, most in ${fmtMonth(peak)} (${max.toLocaleString()}).`;
+    else if (!total) note = chart.failed ? "The count could not be completed." : "No matching articles in any month.";
+    // Articles, not headlines: the count is of rows, one per article URL, copies included.
+    else note = `${total.toLocaleString()} matching article${total === 1 ? "" : "s"}, ${fmtMonth(first)} to ${fmtMonth(last)}, most in ${fmtMonth(peak)} (${max.toLocaleString()}).`;
     if (!chart.running && chart.partial.size) note += " Months marked ~ hit the time limit, so their counts are low.";
     if (!chart.running && chart.failed) note += ` ${chart.failed} window${chart.failed === 1 ? "" : "s"} could not be counted${chart.limited ? " (too many searches from here in a minute; search again in a minute to fill them in)" : ""}.`;
     if (!chart.running && total) note += " Click a month or a year to narrow the search to it.";
@@ -272,7 +280,7 @@
     else if (a.dataset.month) { $("from").value = a.dataset.month + "-01"; $("to").value = monthEnd(a.dataset.month); }
     else { $("from").value = a.dataset.year + "-01-01"; $("to").value = a.dataset.year + "-12-31"; }
     linkDates();
-    page = 1;
+    reset();
     search(true);
     if (a.dataset.domain) $("out").scrollIntoView();
   });
@@ -300,7 +308,7 @@
     if (f.value && t.value && t.value < f.value) { if (changed === "from") t.value = f.value; else f.value = t.value; }
     t.min = f.value || f.min; f.max = t.value || t.max || "";
   }
-  const go = () => { linkDates(); if ($("q").value.trim().length >= 2) { page = 1; search(true); } };
+  const go = () => { linkDates(); if ($("q").value.trim().length >= 2) { reset(); search(true); } };
   $("from").addEventListener("change", () => { linkDates("from"); go(); });
   $("to").addEventListener("change", () => { linkDates("to"); go(); });
   $("clear-dates").onclick = () => { $("from").value = ""; $("to").value = ""; go(); };
@@ -313,7 +321,7 @@
   $("earlier").onclick = () => shift(-1);
   $("later").onclick = () => shift(1);
 
-  form.onsubmit = e => { e.preventDefault(); page = 1; search(true); };
+  form.onsubmit = e => { e.preventDefault(); reset(); search(true); };
   window.onpopstate = () => {
     if (fromUrl()) search(false);
     else { $("examples").hidden = false; $("out").hidden = true; chart = null; $("months").hidden = true; document.title = "Headline Search"; }

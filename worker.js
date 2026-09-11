@@ -8,8 +8,15 @@
 // SEARCH_LIMIT (rate limit per IP, see wrangler.jsonc: 120 a minute, where a
 // search with its chart is eight requests; the page retries what is refused).
 
+// A page is PAGE distinct headlines. The database returns rows (one per
+// article URL), and a story syndicated to many sites, or to one site's many
+// local editions, is the same title over and over: the Worker collapses
+// identical titles and, when more than half of a hundred rows collapsed,
+// looks at up to WINDOW rows for that page instead. Pages continue from a
+// timestamp cursor rather than a row offset (see runSearch).
 const PAGE = 100;
-const MAX_OFFSET = 5000;
+const WINDOW = 1000;
+const MAX_SKIP = 10000;
 // The search user's profile caps queries at 20 s. Since the text index
 // (2026-09-11) a word search over the whole archive is answered in a second
 // or two; the limit is the backstop for the substring patterns the index
@@ -31,6 +38,9 @@ export default {
       return json({ error: e.message }, 400);
     }
 
+    const count = url.pathname === "/api/count";
+    if (count) { q.cursor = ""; q.skip = 0; } // a count is the whole range; no paging
+
     // Same parameters, same cache entry, whatever order or junk the URL had.
     const key = new Request(`${url.origin}${url.pathname}?${canonical(q)}`);
     const cache = caches.default;
@@ -41,7 +51,6 @@ export default {
     const { success } = await env.SEARCH_LIMIT.limit({ key: ip });
     if (!success) return json({ error: "Too many searches; wait a minute.", rateLimited: true }, 429);
 
-    const count = url.pathname === "/api/count";
     let body;
     try {
       body = count ? await runCount(env, q) : await runSearch(env, q);
@@ -89,9 +98,22 @@ function parse(p) {
   if (from > to) throw new Error("from is after to");
   const domain = (p.get("domain") || "").trim().toLowerCase();
   if (domain.length > 100 || /[^a-z0-9.-]/.test(domain)) throw new Error("domain looks wrong");
-  const page = Math.min(Math.max(parseInt(p.get("page") || "1", 10) || 1, 1), MAX_OFFSET / PAGE);
   const sort = p.get("sort") === "oldest" ? "oldest" : "newest";
-  return { q, mode, words, from, to, domain, page, sort };
+  // Where the previous page stopped: its last timestamp (before= going
+  // newest-first, after= going oldest-first) and how many rows at that
+  // timestamp it already showed.
+  const cursor = stamp(p.get(sort === "oldest" ? "after" : "before"));
+  const skip = cursor ? Math.min(Math.max(parseInt(p.get("skip") || "0", 10) || 0, 0), MAX_SKIP) : 0;
+  return { q, mode, words, from, to, domain, sort, cursor, skip };
+}
+
+// A cursor timestamp is written compactly (20260911183000, GDELT's own
+// form) and read back as ClickHouse's "2026-09-11 18:30:00".
+function stamp(s) {
+  if (!s) return "";
+  const m = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(s);
+  if (!m || isNaN(Date.parse(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`))) throw new Error("before/after is a timestamp like 20260911183000");
+  return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}:${m[6]}`;
 }
 
 function day(s, fallback) {
@@ -101,7 +123,7 @@ function day(s, fallback) {
 }
 
 function canonical(q) {
-  return new URLSearchParams({ q: q.q, mode: q.mode, from: q.from, to: q.to, domain: q.domain, page: q.page, sort: q.sort }).toString();
+  return new URLSearchParams({ q: q.q, mode: q.mode, from: q.from, to: q.to, domain: q.domain, sort: q.sort, cursor: q.cursor, skip: q.skip }).toString();
 }
 
 // ----------------------------------------------------------------- queries
@@ -190,15 +212,71 @@ function settings(q, extra) {
   return s;
 }
 
+// A page: rows newest-first (or oldest-first) from the cursor, identical
+// titles collapsed in order of first appearance, the first PAGE distinct
+// titles kept. Reading in key order and stopping at the limit is what makes
+// a search cheap, so the collapse happens here rather than in the database:
+// LIMIT 1 BY title would make ClickHouse read the title of every candidate
+// row instead of the final hundred (measured 2026-09-11: five to twenty
+// times slower on the common case). A hundred rows are fetched first; when
+// fewer than half of them were distinct, up to WINDOW rows are fetched
+// instead, so a story copied to a hundred local editions costs one more
+// query rather than a page of one line.
+//
+// The next page starts where this one stopped: at the timestamp of the last
+// row used, skipping the rows at that timestamp already shown (many rows
+// share a timestamp; GDELT's are fifteen-minute batches). Unlike a row
+// offset, that costs the same for page fifty as for page one, and rows
+// inserted meanwhile do not shift the pages under the reader.
 async function runSearch(env, q) {
-  const params = { limit: PAGE, offset: (q.page - 1) * PAGE };
-  // Oldest-first reads the earliest granules first and stops at the limit just
-  // as newest-first does, so it costs the same; it is how you find when a
-  // phrase first turned up.
-  const sql = `SELECT ts, domain, url, title FROM headlines WHERE ${where(q, params)}
+  const params = { limit: PAGE, offset: q.skip };
+  let conds = where(q, params);
+  if (q.cursor) {
+    conds += q.sort === "oldest" ? " AND ts >= {cursor:DateTime}" : " AND ts <= {cursor:DateTime}";
+    params.cursor = q.cursor;
+  }
+  const sql = `SELECT ts, domain, url, title FROM headlines WHERE ${conds}
     ORDER BY ts ${q.sort === "oldest" ? "ASC" : "DESC"} LIMIT {limit:UInt32} OFFSET {offset:UInt32} FORMAT JSON`;
-  const r = await clickhouse(env, sql, params, settings(q, { max_execution_time: TIME_LIMIT }));
-  return { rows: r.data, elapsed: r.statistics.elapsed, timedOut: r.statistics.elapsed >= TIME_LIMIT };
+  let r = await clickhouse(env, sql, params, settings(q, { max_execution_time: TIME_LIMIT }));
+  let elapsed = r.statistics.elapsed;
+  let page = collapse(r.data, PAGE);
+  if (r.data.length === PAGE && page.groups.length < PAGE / 2) {
+    params.limit = WINDOW;
+    r = await clickhouse(env, sql, params, settings(q, { max_execution_time: TIME_LIMIT }));
+    elapsed += r.statistics.elapsed;
+    page = collapse(r.data, PAGE);
+  }
+  let next = null;
+  if (page.used && (page.used < r.data.length || r.data.length === params.limit)) {
+    const last = r.data[page.used - 1].ts;
+    let k = 0;
+    for (let i = page.used - 1; i >= 0 && r.data[i].ts === last; i--) k++;
+    if (last === q.cursor) k += q.skip;
+    next = { [q.sort === "oldest" ? "after" : "before"]: last.replace(/\D/g, ""), skip: k };
+  }
+  return { rows: page.groups, used: page.used, next, elapsed, timedOut: r.statistics.elapsed >= TIME_LIMIT };
+}
+
+// Collapse rows with the same title into one, in order of first appearance,
+// up to `want` distinct titles; `used` is how many rows that took, which is
+// where the next page starts.
+function collapse(rows, want) {
+  const groups = [];
+  const seen = new Map();
+  let used = 0;
+  for (const row of rows) {
+    let g = seen.get(row.title);
+    if (!g) {
+      if (groups.length === want) break;
+      g = { ts: row.ts, domain: row.domain, url: row.url, title: row.title, n: 0, sites: new Set() };
+      groups.push(g);
+      seen.set(row.title, g);
+    }
+    g.n++;
+    g.sites.add(row.domain);
+    used++;
+  }
+  return { groups: groups.map((g) => ({ ...g, sites: g.sites.size })), used };
 }
 
 async function runCount(env, q) {

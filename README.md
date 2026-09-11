@@ -12,8 +12,10 @@ turned up in the news, or what a particular outlet headlined that week.
 
 - A page with one search box, a word/substring toggle, a newest/oldest-first
   toggle, a date range, an optional domain, and a plain list of results: date,
-  headline, domain, link, with the matched words marked. Identical headlines
-  within a result page collapse into one line with a count. A source or a
+  headline, domain, link, with the matched words marked. A page is a hundred
+  distinct headlines: copies of a headline (a story on many sites, or on one
+  site's many local editions) collapse into one line with a count and the
+  number of sites. A source or a
   month in the count can be clicked to narrow the search. The page says what
   is loaded (first and last day, row count). The URL carries the query so a
   search can be linked to.
@@ -70,11 +72,24 @@ Three pieces, in three places.
    with its chart is eight requests, and the page retries windows that were
    refused once the minute has turned).
 
-Search returns 100 matches, newest first or oldest first (`sort=oldest`),
-paged with `page=`, up to 50 pages. Either direction reads from its end of
-the table and stops at the limit, so they cost the same. Stats is the first
-and last timestamp and the row count, which the page shows so nobody
-searches for 2020 while only 2025 is loaded.
+Search returns a page of 100 distinct headlines, newest first or oldest
+first (`sort=oldest`). The database returns rows, one per article URL, and
+the Worker collapses identical titles: it reads a hundred rows and, when
+fewer than half of them were distinct (a story copied to a hundred local
+radio-station pages, say), up to a thousand, then keeps the first hundred
+distinct titles with a count of copies and of sites for each. The collapse
+is in the Worker rather than the query because `LIMIT 1 BY title` makes
+ClickHouse read the title of every candidate row instead of the final
+hundred, five to twenty times slower on a common word (measured
+2026-09-11). The next page continues from where this one stopped, given as
+`before=20260911183000&skip=7` (oldest-first: `after=`): the timestamp of
+the last row used and how many rows at that timestamp were already shown,
+since GDELT's timestamps are fifteen-minute batches shared by many rows.
+Unlike a row offset, page fifty costs the same as page one, and rows
+inserted between two page loads do not shift the pages. Either direction
+reads from its end of the table and stops at the limit, so they cost the
+same. Stats is the first and last timestamp and the row count, which the
+page shows so nobody searches for 2020 while only 2025 is loaded.
 Count returns matches per month for a date range, with a 20 second budget,
 and says so when it ran out. The page asks for twelve-month windows, newest
 first, and draws the chart as they arrive, about a second a window since

@@ -9,6 +9,9 @@
 
 const PAGE = 100;
 const MAX_OFFSET = 5000;
+// The search user's profile caps queries at 20 s; a rare word over the whole
+// archive needs up to about 15 on a cold server (see README).
+const TIME_LIMIT = 20;
 const FIRST_DAY = "2019-10-01";
 
 export default {
@@ -124,13 +127,22 @@ function where(q, params) {
       // Three tests that agree: hasTokenCaseInsensitive is the cheap per-row one
       // (ASCII folding only, so non-ASCII words skip it); hasToken(lowerUTF8()) is
       // what the token bloom index prunes granules by, which is what makes a rare
-      // word fast over the whole archive; the LIKE is what the trigram index
-      // understands. ClickHouse evaluates them left to right and stops early.
+      // word fast over the whole archive; the LIKE is redundant here but costs
+      // nothing. ClickHouse evaluates them left to right and stops early. The
+      // trigram index is switched off for word mode (see settings()): it cannot
+      // prune better than the token index, and decompressing it is another
+      // gigabyte on a word with few matches.
       if (/^[\x00-\x7f]*$/.test(w)) conds.push(`hasTokenCaseInsensitive(title, {w${i}:String})`);
       conds.push(`hasToken(lowerUTF8(title), {w${i}:String})`, `lowerUTF8(title) LIKE {p${i}:String}`);
     });
   }
   return conds.join(" AND ");
+}
+
+// Word mode is answered by the token index; a source filter by the by_domain
+// projection. Only substring mode needs the trigram index.
+function settings(q, extra) {
+  return { ...extra, ...(q.mode === "word" ? { ignore_data_skipping_indices: "title_ngram" } : {}) };
 }
 
 async function runSearch(env, q) {
@@ -140,17 +152,16 @@ async function runSearch(env, q) {
   // phrase first turned up.
   const sql = `SELECT ts, domain, url, title FROM headlines WHERE ${where(q, params)}
     ORDER BY ts ${q.sort === "oldest" ? "ASC" : "DESC"} LIMIT {limit:UInt32} OFFSET {offset:UInt32} FORMAT JSON`;
-  const r = await clickhouse(env, sql, params, { max_execution_time: 10 });
-  return { rows: r.data, elapsed: r.statistics.elapsed, timedOut: r.statistics.elapsed >= 10 };
+  const r = await clickhouse(env, sql, params, settings(q, { max_execution_time: TIME_LIMIT }));
+  return { rows: r.data, elapsed: r.statistics.elapsed, timedOut: r.statistics.elapsed >= TIME_LIMIT };
 }
 
 async function runCount(env, q) {
   const params = {};
   const sql = `SELECT toStartOfMonth(ts) AS month, count() AS n FROM headlines WHERE ${where(q, params)}
     GROUP BY month ORDER BY month FORMAT JSON`;
-  const settings = { max_execution_time: 20, timeout_overflow_mode: "break" };
-  const r = await clickhouse(env, sql, params, settings);
-  const partial = r.statistics.elapsed >= 20;
+  const r = await clickhouse(env, sql, params, settings(q, { max_execution_time: TIME_LIMIT, timeout_overflow_mode: "break" }));
+  const partial = r.statistics.elapsed >= TIME_LIMIT;
   return { months: r.data.map((x) => [x.month, Number(x.n)]), elapsed: r.statistics.elapsed, partial };
 }
 
@@ -164,15 +175,21 @@ async function clickhouse(env, sql, params, settings) {
     headers: { "X-ClickHouse-User": "search", "X-ClickHouse-Key": env.CH_PASSWORD },
     signal: AbortSignal.timeout(30000),
   });
-  if (!res.ok) {
-    const text = await res.text();
-    console.error("clickhouse", res.status, text.slice(0, 300));
-    const timeout = text.includes("TIMEOUT_EXCEEDED");
-    const e = new Error(timeout ? "This search would take more than 10 seconds over the whole archive." : "database error");
-    e.timeout = timeout;
-    throw e;
+  const text = await res.text();
+  // A count that runs out of its budget before it has produced anything comes
+  // back as a 200 with an empty body (timeout_overflow_mode=break, seen at the
+  // 20 s cap on a cold server), and an error after the headers are sent is
+  // appended to the body. Neither is JSON; both are failures.
+  if (res.ok) {
+    try {
+      return JSON.parse(text);
+    } catch (e) {}
   }
-  return res.json();
+  console.error("clickhouse", res.status, text.length, text.slice(0, 300));
+  const timeout = !text.trim() || text.includes("TIMEOUT_EXCEEDED");
+  const e = new Error(timeout ? `This search would take more than ${TIME_LIMIT} seconds over the whole archive.` : "database error");
+  e.timeout = timeout;
+  throw e;
 }
 
 function json(body, status = 200, cacheControl = "no-store") {

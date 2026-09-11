@@ -24,6 +24,14 @@
 -- domain_bf lets a source filter skip the granules (hours) in which that site
 -- published nothing, which for all but the biggest sites is most of them.
 --
+-- by_domain is a projection: a second copy of the rows inside each part,
+-- ordered by (domain, ts). ClickHouse reads it instead of the table whenever
+-- the query names a domain, so a source filter reads that site's rows and
+-- nothing else. The bloom filters cannot do that: a big site is in nearly
+-- every granule, and on 2026-09-11 every source-filtered search over the
+-- whole archive timed out. It costs as much disk as the table (about 27 GB
+-- at 325M rows) and every insert and merge writes the rows twice.
+--
 -- non_replicated_deduplication_window: an INSERT whose block is identical to
 -- one of the last 1000 inserted blocks is silently dropped, a second guard
 -- against duplicates after the files table.
@@ -35,7 +43,8 @@ CREATE TABLE IF NOT EXISTS headlines (
   title  String CODEC(LZ4),
   INDEX title_ngram lowerUTF8(title) TYPE ngrambf_v1(3, 32768, 2, 0) GRANULARITY 1,
   INDEX title_tokens lowerUTF8(title) TYPE tokenbf_v1(65536, 3, 0) GRANULARITY 1,
-  INDEX domain_bf domain TYPE bloom_filter(0.01) GRANULARITY 1
+  INDEX domain_bf domain TYPE bloom_filter(0.01) GRANULARITY 1,
+  PROJECTION by_domain (SELECT ts, domain, url, title ORDER BY (domain, ts))
 )
 ENGINE = MergeTree
 PARTITION BY toYYYYMM(ts)

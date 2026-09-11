@@ -19,12 +19,14 @@ turned up in the news, or what a particular outlet headlined that week.
   search can be linked to.
 - Search covers the whole corpus (English-language GKG files, 2019-10-01 to
   yesterday). Word search matches whole words, case-insensitive, and answers
-  in seconds for any word over the whole range. Substring search matches any
-  run of characters and is as quick unless the run is made of common
-  trigrams, in which case the page says so and offers whole-word search or
-  the last twelve months instead. Counting matches by month runs in
-  six-month windows and draws the chart as they arrive: seconds for a rare
-  word, a few minutes for a common one.
+  within its 20-second limit for any word over the whole range, with or
+  without a source: about a second for a common word, a few seconds for a
+  rare one, up to about fifteen when the server's caches are cold. Substring
+  search matches any run of characters and is as quick unless the run is
+  made of common trigrams, in which case the page says so and offers
+  whole-word search or the last twelve months instead. Counting matches by
+  month runs in six-month windows and draws the chart as they arrive:
+  seconds for a rare word, a few minutes for a common one.
 - The database is fed by a scheduled ingest that reads GDELT's master file
   list, downloads new GKG files, keeps only date, source, URL and title, and
   inserts them. It is idempotent and resumable: re-running never duplicates rows
@@ -81,13 +83,30 @@ bloom filter over the lowercased titles' whole words, one over their trigrams,
 and one over the source domains, so ClickHouse skips every hour that cannot
 contain the word, the trigrams or the site. Common terms are found in the
 first few granules anyway because reads go newest-first and stop at the
-limit. What the filters cannot do is prune on a combination: a common word on
-a big site where the pair is rare ("hurricane" on irishtimes.com) scans until
-it finds a hundred, and so does a substring made of common trigrams
-("nenagh" as a substring; as a word it is instant). Those are the searches
-that can hit the ten-second limit over the whole archive; the page then offers
-the last twelve months, or whole words. A projection of the table ordered by
-(domain, ts) would fix the site case at the cost of doubling the disk.
+limit. What the filters cannot do is prune on a combination, so a source
+filter is served by a projection instead: a second copy of the rows ordered
+by (domain, ts), which ClickHouse picks whenever the query names a domain,
+so "hurricane" on irishtimes.com reads that site's rows and nothing else.
+Its price is the disk, about as much again as the table.
+
+Two shapes are still slow. A substring made of common trigrams ("nenagh" as
+a substring; as a word it is instant) scans until it finds a hundred and can
+hit the 20-second limit over the whole archive; the page then offers the
+last twelve months, or whole words. And a word with fewer than a hundred
+matches in the whole archive has nothing to stop the read early, so every
+granule's token filter is decompressed: 1.8 GB, about four seconds when it
+is in memory and fifteen when it is not. Word mode tells ClickHouse to
+ignore the trigram filter, which the LIKE would otherwise drag in for
+another gigabyte and no extra pruning.
+
+Measured 2026-09-11 with the full corpus, 325M rows and 27 GB, on the same
+box: a common word over the whole range 0.4 to 1.5 s from cold; a rare word
+("nenagh", 1,883 matches) 6 s cold and 3 warm; a word with no matches
+anywhere 14.5 s cold, 4 warm; a six-month count window 2 to 9 s; every
+source-filtered search over the whole archive timed out before the
+projection and takes 0.2 to 0.4 s with it, from cold. The three skip
+indexes come to 2.9 GB on disk, more than the box can keep in memory next
+to the data, which is the cold-versus-warm gap.
 
 Measured 2026-09-10 on the Lightsail box (2 vCPU, 4 GB) with 63M rows loaded
 and the backfill inserting: a full scan of the titles ran at 4.5M rows a

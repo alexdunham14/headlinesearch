@@ -125,8 +125,10 @@ function day(s, fallback) {
   return s;
 }
 
+// v is the response shape: bump it when the shape changes, so entries cached
+// at the edge under the old shape (a day, for counts) are never served.
 function canonical(q) {
-  return new URLSearchParams({ q: q.q, mode: q.mode, from: q.from, to: q.to, domain: q.domain, sort: q.sort, cursor: q.cursor, skip: q.skip }).toString();
+  return new URLSearchParams({ v: 2, q: q.q, mode: q.mode, from: q.from, to: q.to, domain: q.domain, sort: q.sort, cursor: q.cursor, skip: q.skip }).toString();
 }
 
 // ----------------------------------------------------------------- queries

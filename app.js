@@ -105,16 +105,18 @@
       .replace(/ß/g, "ss").replace(/æ/g, "ae").replace(/œ/g, "oe");
   }
 
-  // Wrap each match in <mark>: whole words in word mode, the exact run in
-  // substring mode. Matching runs on the folded title, and each folded
-  // character remembers where in the original it came from, so the mark
-  // lands on the original text ("Niño", not "nino").
+  // Wrap each match in <mark>: whole words in word mode (of every OR
+  // alternative: "congo OR drc" marks either), the exact run in substring
+  // mode. Matching runs on the folded title, and each folded character
+  // remembers where in the original it came from, so the mark lands on the
+  // original text ("Niño", not "nino").
   function highlighter(p) {
     const re = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const q = fold(p.get("q"));
+    const q = p.get("q");
+    const words = [...new Set(q.split(/(?<=^|\s)OR(?=\s|$)/).map(fold).join(" ").split(/[^\p{L}\p{N}]+/u).filter(Boolean))];
     const pat = p.get("mode") === "substring"
-      ? re(q)
-      : q.split(/[^\p{L}\p{N}]+/u).filter(Boolean).map(w => `(?<![\\p{L}\\p{N}])${re(w)}(?![\\p{L}\\p{N}])`).join("|");
+      ? re(fold(q))
+      : words.map(w => `(?<![\\p{L}\\p{N}])${re(w)}(?![\\p{L}\\p{N}])`).join("|");
     let rx;
     try { rx = new RegExp(pat, "giu"); } catch (e) { return esc; }
     return title => {
@@ -279,6 +281,10 @@
     if (!chart.running && chart.failed) note += ` ${chart.failed} window${chart.failed === 1 ? "" : "s"} could not be counted${chart.limited ? " (too many searches from here in a minute; search again in a minute to fill them in)" : ""}.`;
     if (!chart.running && total[2]) note += " Click a month or a year to narrow the search to it.";
     $("months-note").textContent = note;
+    const cp = new URLSearchParams({ s: p.get("q") + (single ? ` site:${p.get("domain")}` : "") });
+    if (measure !== "stories") cp.set("measure", measure);
+    $("compare").href = "/compare?" + cp;
+    $("compare-p").hidden = p.get("mode") === "substring";
     const each = v => single ? `${fmt(v[0])} stories, ${fmt(v[2])} articles` : `${fmt(v[0])} stories, ${fmt(v[1])} outlets, ${fmt(v[2])} articles`;
     $("chart").innerHTML = months.map(m => {
       const v = c.get(m);

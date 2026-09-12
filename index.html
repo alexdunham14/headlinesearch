@@ -50,10 +50,10 @@
       <button type="button" class="chip" id="clear-domain" title="Any source">any</button>
     </div>
   </div>
-  <p class="help">Word search matches whole words, in any order. Substring search matches the exact run of characters. Search is case-insensitive.</p>
+  <p class="help">Word search matches whole words, in any order; OR between alternatives finds either (congo OR drc). Substring search matches the exact run of characters. Search is case-insensitive.</p>
 </form>
 
-<p id="examples">Try: <a href="?q=ceasefire">ceasefire</a>, <a href="?q=climate+change">climate change</a>, <a href="?q=zelensk&amp;mode=substring">zelensk (substring)</a>, <a href="?q=election&amp;domain=bbc.com">election on bbc.com</a>, <a href="?q=tariff&amp;sort=oldest">tariff, oldest first</a>.</p>
+<p id="examples">Try: <a href="?q=ceasefire">ceasefire</a>, <a href="?q=climate+change">climate change</a>, <a href="?q=zelensk&amp;mode=substring">zelensk (substring)</a>, <a href="?q=election&amp;domain=bbc.com">election on bbc.com</a>, <a href="?q=tariff&amp;sort=oldest">tariff, oldest first</a>; or <a href="compare?s=ukraine&amp;s=gaza&amp;s=sudan">compare ukraine, gaza and sudan</a> month by month.</p>
 
 <div id="out" hidden>
   <div class="summary"><p id="status"></p><button type="button" class="chip" id="count" hidden>Count by month</button></div>
@@ -70,6 +70,7 @@
       </span>
       <span class="note">A story is a headline's first appearance anywhere in a week; an outlet, its first appearance on each site; an article, every page that carried it.</span>
     </p>
+    <p class="note" id="compare-p"><a id="compare" href="compare">Compare with other terms</a> on one chart, as counts or as a share of the month's headlines.</p>
     <details class="tbl"><summary>as a list</summary><table id="months-table"></table></details>
   </section>
   <h2 id="list-h" hidden>Headlines</h2>

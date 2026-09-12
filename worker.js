@@ -1,7 +1,8 @@
-// /api/search, /api/count and /api/stats: validate the query string, build
-// one of three fixed ClickHouse queries with bound parameters, run it as the
-// read-only `search` user, cache the answer at the edge. Everything else is a
-// static asset. Nothing a visitor sends ever reaches ClickHouse as SQL.
+// /api/search, /api/count, /api/totals and /api/stats: validate the query
+// string, build one of three fixed ClickHouse queries with bound parameters
+// (totals is the count query without its term), run it as the read-only
+// `search` user, cache the answer at the edge. Everything else is a static
+// asset. Nothing a visitor sends ever reaches ClickHouse as SQL.
 //
 // Secrets: CH_URL (e.g. http://db.example.com:8123; a hostname, not a bare
 // IP, which Cloudflare refuses with error 1003), CH_PASSWORD (the `search`
@@ -30,18 +31,20 @@ const FIRST_DAY = "2019-10-01";
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    if (!["/api/search", "/api/count", "/api/stats"].includes(url.pathname)) return env.ASSETS.fetch(request);
+    if (!["/api/search", "/api/count", "/api/totals", "/api/stats"].includes(url.pathname)) return env.ASSETS.fetch(request);
     if (request.method !== "GET") return json({ error: "GET only" }, 405);
     if (url.pathname === "/api/stats") return stats(env, ctx, url);
 
+    // Totals (compare mode's denominator) are the three counts a month with
+    // no term: the count query, parsed and cached the same way, minus the term.
+    const totals = url.pathname === "/api/totals";
+    const count = url.pathname === "/api/count" || totals;
     let q;
     try {
-      q = parse(url.searchParams);
+      q = parse(url.searchParams, totals);
     } catch (e) {
       return json({ error: e.message }, 400);
     }
-
-    const count = url.pathname === "/api/count";
     if (count) { q.cursor = ""; q.skip = 0; } // a count is the whole range; no paging
 
     // Same parameters, same cache entry, whatever order or junk the URL had.
@@ -88,14 +91,20 @@ async function stats(env, ctx, url) {
 
 // ---------------------------------------------------------------- parsing
 
-function parse(p) {
-  const q = (p.get("q") || "").trim();
-  if (q.length < 2) throw new Error("query must be at least two characters");
+// In word mode the query is alternatives separated by OR (upper case, on its
+// own: "congo OR drc", "el nino OR la nina"), each a set of words that must
+// all be present; `groups` holds them. Substring mode takes OR literally. A
+// totals request has no query at all.
+function parse(p, totals = false) {
+  const q = totals ? "" : (p.get("q") || "").trim();
+  if (!totals && q.length < 2) throw new Error("query must be at least two characters");
   if (q.length > 200) throw new Error("query too long");
   const mode = p.get("mode") === "substring" ? "substring" : "word";
-  const words = q.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-  if (mode === "word" && words.length === 0) throw new Error("no words to search for");
-  if (words.length > 8) throw new Error("at most eight words");
+  const split = (s) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const groups = mode === "word" ? q.split(/(?<=^|\s)OR(?=\s|$)/).map(split).filter((g) => g.length) : [split(q)];
+  if (!totals && mode === "word" && groups.length === 0) throw new Error("no words to search for");
+  if (groups.length > 8) throw new Error("at most eight alternatives");
+  if (groups.some((g) => g.length > 8)) throw new Error("at most eight words");
   const from = day(p.get("from"), FIRST_DAY);
   const to = day(p.get("to"), "2100-01-01");
   if (from > to) throw new Error("from is after to");
@@ -107,7 +116,7 @@ function parse(p) {
   // timestamp it already showed.
   const cursor = stamp(p.get(sort === "oldest" ? "after" : "before"));
   const skip = cursor ? Math.min(Math.max(parseInt(p.get("skip") || "0", 10) || 0, 0), MAX_SKIP) : 0;
-  return { q, mode, words, from, to, domain, sort, cursor, skip };
+  return { q, mode, groups, from, to, domain, sort, cursor, skip, totals };
 }
 
 // A cursor timestamp is written compactly (20260911183000, GDELT's own
@@ -168,6 +177,12 @@ function fold(s) {
 // contains its folded form once folded, so each fragment LIKE is implied by
 // the full one and results are unchanged. A pattern with no such fragment
 // gets no pruning and scans until the limit.
+//
+// OR-groups: single-word alternatives are one hasAnyTokens, which the index
+// answers as a union of posting lists; alternatives with more than one word
+// are a hasAllTokens each, joined by OR, which the index also prunes on
+// (measured 2026-09-12: "el nino OR la nina" over a year read a fifth of the
+// granules in 0.3 s).
 function where(q, params) {
   const conds = ["ts >= {from:Date}", "ts < {to:Date} + INTERVAL 1 DAY"];
   params.from = q.from;
@@ -176,7 +191,9 @@ function where(q, params) {
     conds.push("domain = {domain:String}");
     params.domain = q.domain;
   }
-  if (q.mode === "substring") {
+  if (q.totals) {
+    // no term: every headline in the range
+  } else if (q.mode === "substring") {
     const lq = q.q.toLowerCase();
     params.q = q.q;
     params.pat = "%" + like(lq) + "%";
@@ -187,10 +204,14 @@ function where(q, params) {
     });
     conds.push("lowerUTF8(title) LIKE {pat:String}");
   } else {
-    const words = q.words.map(fold).filter(Boolean);
-    if (words.length === 0) throw new Error("no words to search for");
-    words.forEach((w, i) => (params["w" + i] = w));
-    conds.push(`hasAllTokens(${FOLD}, [${words.map((_, i) => `{w${i}:String}`).join(", ")}])`);
+    const groups = q.groups.map((g) => g.map(fold).filter(Boolean)).filter((g) => g.length);
+    if (groups.length === 0) throw new Error("no words to search for");
+    let n = 0;
+    const bind = (w) => { params["w" + n] = w; return `{w${n++}:String}`; };
+    const list = (g) => `[${g.map(bind).join(", ")}]`;
+    if (groups.length === 1) conds.push(`hasAllTokens(${FOLD}, ${list(groups[0])})`);
+    else if (groups.every((g) => g.length === 1)) conds.push(`hasAnyTokens(${FOLD}, ${list(groups.map((g) => g[0]))})`);
+    else conds.push("(" + groups.map((g) => `hasAllTokens(${FOLD}, ${list(g)})`).join(" OR ") + ")");
   }
   return conds.join(" AND ");
 }
@@ -291,6 +312,8 @@ function collapse(rows, want) {
 // articles every row. With a source, "stories" means that site's own first
 // sightings (copy <= 1), since whether it was first anywhere is a different
 // question; the page then does not offer outlets, which would be the same.
+// A totals request (q.totals, compare mode's denominator) is the same query
+// with no term: every headline in the range, by month.
 async function runCount(env, q) {
   const params = {};
   const sql = `SELECT toStartOfMonth(ts) AS month, countIf(copy <= ${q.domain ? 1 : 0}) AS stories, countIf(copy <= 1) AS outlets, count() AS articles

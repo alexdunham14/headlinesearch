@@ -39,6 +39,15 @@ turned up in the news, or what a particular outlet headlined that week.
   hundred local sites is one story and three hundred outlets. The bars
   show one measure, chosen under the chart; the note and the table give
   all three.
+- Compare mode (`/compare`): up to six terms on one chart, month by month.
+  Each term is a whole-word search, with OR between alternatives (`congo OR
+  drc`) and, optionally, one source (`gaza site:bbc.com`). The lines show
+  stories, outlets or articles, as counts, as a share of all the headlines
+  GDELT collected that month (for a term with a source, of that source's
+  headlines), or each at its own peak, over a date range; a hover gives the
+  month's numbers; a table gives the same; the URL carries all of it; and
+  the chart can be saved as an image with the URL on it. The same OR works
+  in the search box, so a series can be clicked through to its headlines.
 - The database is fed by a scheduled ingest that reads GDELT's master file
   list, downloads new GKG files, keeps only date, source, URL and title,
   flags each row as a story, an outlet's copy or a repeat, and inserts
@@ -74,7 +83,8 @@ Three pieces, in three places.
    `search` user with a quota, reachable only from the Worker.
    `server/setup.sh` turns a fresh Debian box into this.
 3. **The site** on Cloudflare Workers: `index.html`, `styles.css`, `app.js`
-   as static assets, and `worker.js` for `/api/search`, `/api/count` and
+   as static assets, `compare.html` and `compare.js` for compare mode, and
+   `worker.js` for `/api/search`, `/api/count`, `/api/totals` and
    `/api/stats`, which validate the parameters, build a parameterised
    ClickHouse query, cache the answer at the edge (an hour for searches and
    stats, a day for counts) and rate-limit by IP (120 a minute; a search
@@ -121,6 +131,31 @@ newest-first (or oldest-first) and stop at the limit. A substring search
 adds, for each run of four or more letters or digits in the pattern, a lookup
 of the dictionary for the tokens containing that run, and the bitmaps of
 those tokens narrow the read before the exact pattern is checked.
+
+OR between alternatives (`congo OR drc`, `el nino OR la nina`; upper case,
+on its own) makes a word search match headlines with any of them. Single
+words become one `hasAnyTokens` over the folded title; phrases become
+`hasAllTokens` per alternative joined by OR, which the text index also
+answers from its posting lists (measured 2026-09-12 over one year: "el nino
+OR la nina" read 1,038 of 5,142 granules, 0.3 s; "congo OR drc" 0.8 s).
+Substring mode takes OR literally. At most eight alternatives of eight
+words.
+
+**Compare mode** is the month chart for several terms at once, and asks the
+database for nothing new: each series is the same `/api/count` in the same
+twelve-month windows as the single chart, so the two share the edge cache,
+and the denominator for a share is `/api/totals`, the three counts a month
+with no term (about a second a window over the whole crawl, 0.04 s for one
+source through the projection), cached a day like the counts. The page
+fetches three windows at a time, newest first, and draws the lines as they
+arrive. The share is of the same measure: stories against all stories that
+month, an outlet's articles against that outlet's articles. Its caveat is
+on the page: GDELT's set of sources is not constant (15 million rows in
+2019, 53 million in 2020, 42 million in 2025), so a share across years is
+against a changing base, and a term's share of one source's headlines is
+the steadier comparison. The image is the chart's SVG drawn again on white
+with the series, their totals and the page's URL, rasterised in the
+browser.
 
 Until 2026-09-11 the same job was done by two bloom-filter skip indexes (one
 per granule of 8192 rows, about an hour of news, over the words and one over
@@ -247,6 +282,13 @@ user's password), set with `wrangler secret put`. `CH_URL` must use a
 hostname, not a bare IP address: a Worker's `fetch()` to an IP literal is
 refused at Cloudflare's edge (error 1003) and never reaches the server. Any
 port works.
+`db.newsheadlinesearch.com` is a proxied record, which the deployed Worker
+reaches all the same because a subrequest to a hostname in the Worker's
+own zone goes straight to the origin; a `wrangler versions upload` preview
+on workers.dev is not in that zone, goes through the proxy, which does not
+serve port 8123, and gets "database error" for everything (2026-09-12).
+So the API can only be tried in production, or locally against
+`scripts/dev-db`.
 
 The database runs on an AWS Lightsail instance (`headlinesearch-db`, 2 vCPU,
 4 GB, 80 GB, Debian 12, us-east-1) in Alex's AWS account; `ssh headlinesearch-db`

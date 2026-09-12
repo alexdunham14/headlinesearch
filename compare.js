@@ -37,6 +37,7 @@
 
   let loaded = { first: "2019-10-01", last: day(new Date()) };
   let measure = "stories", scale = "count";
+  let chartOnly = false; // ?view=chart: the chart on its own, first on the page, with a link to the full page
   const setMeasure = m => { measure = MEASURES.includes(m) ? m : "stories"; document.querySelector(`input[name=measure][value=${measure}]`).checked = true; };
   const setScale = s => { scale = SCALES.includes(s) ? s : "count"; document.querySelector(`input[name=scale][value=${scale}]`).checked = true; };
   // What is drawn: the series (text, q, domain, counts per "YYYY-MM" as
@@ -70,13 +71,14 @@
   }
   const read = () => rows().map(i => parseSeries(i.value)).filter(s => s.text);
 
-  function toUrl(series) {
+  function toUrl(series, view = chartOnly) {
     const p = new URLSearchParams();
     series.forEach(s => p.append("s", s.text));
     if (measure !== "stories") p.set("measure", measure);
     if (scale !== "count") p.set("scale", scale);
     if ($("from").value) p.set("from", $("from").value);
     if ($("to").value) p.set("to", $("to").value);
+    if (view) p.set("view", "chart");
     return "?" + p;
   }
   function fromUrl() {
@@ -88,6 +90,8 @@
     while (rows().length < 2) addRow();
     setMeasure(p.get("measure"));
     setScale(p.get("scale"));
+    chartOnly = p.get("view") === "chart";
+    document.body.classList.toggle("chart-only", chartOnly);
     $("from").value = /^\d{4}-\d{2}-\d{2}$/.test(p.get("from") || "") ? p.get("from") : "";
     $("to").value = /^\d{4}-\d{2}-\d{2}$/.test(p.get("to") || "") ? p.get("to") : "";
     linkDates();
@@ -270,6 +274,9 @@
       const peak = ser.peakMonth ? `, most in ${fmtMonth(ser.peakMonth)} (${fmt(ser.max)})` : "";
       return `<li>${sw}<a class="t" href="./?${lp}" title="The headlines">${esc(ser.text)}</a> <span class="note">${fmt(ser.total[k])} ${measure}${share}${peak}</span></li>`;
     }).join("");
+
+    $("chart-link").href = toUrl(s.series, !chartOnly);
+    $("chart-link").textContent = chartOnly ? "See the full compare page" : "Chart on its own";
 
     // The chart, then the hover layer wired to it.
     const box = $("chart");

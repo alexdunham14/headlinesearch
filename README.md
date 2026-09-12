@@ -27,7 +27,10 @@ turned up in the news, or what a particular outlet headlined that week.
   article count and the first and last day it covers, and finds sites by
   part of a name. The page says what is loaded (first and last day, row
   count, number of sources). The URL carries the query so a search can be
-  linked to.
+  linked to, and with `view=chart` the page opens on the chart alone, first
+  under the title, with a link to the full search; a month clicked there
+  opens the full search narrowed to it. The compare page has the same
+  view. Beside every chart, "Chart on its own" is that link.
 - Search covers the whole corpus (English-language GKG files, 2019-10-01 to
   yesterday). Word search matches whole words, ignoring case and accents
   ("el nino" finds "El Niño" and "El Nino"; the corpus spells it both ways

@@ -18,6 +18,7 @@
   let cursor = null;
   const reset = () => { page = 1; cursor = null; };
   let wantCount = false; // ?count=1 in the URL: show the chart too, so it can be linked to
+  let chartOnly = false; // ?view=chart: the chart on its own, first on the page, with a link to the full search
   // What the database holds, from /api/stats; the chart's span and the date pickers' bounds.
   let loaded = { first: "2019-10-01", last: day(new Date()) };
   // The chosen sources, shown as chips under the source box; a search may
@@ -63,6 +64,8 @@
     cursor = p.get(at) ? { [at]: p.get(at), skip: p.get("skip") || 0 } : null;
     page = cursor ? Math.max(2, parseInt(p.get("page") || "2", 10) || 2) : 1;
     wantCount = p.get("count") === "1";
+    chartOnly = p.get("view") === "chart";
+    document.body.classList.toggle("chart-only", chartOnly);
     setMeasure(p.get("measure"));
     linkDates();
     return true;
@@ -71,19 +74,42 @@
   // The chart belongs to a term, a mode and a set of sources; dates and order only narrow the list.
   const chartKey = p => [p.get("q") || "", p.get("mode"), p.get("domain") || ""].join("\n");
   const title = p => `${p.get("q") || sources.join(", ")} - News Headline Search`;
+  // The page's own URL for a search: the query, count=1 while the chart is up,
+  // the measure when not the default, and view=chart for the chart on its own
+  // (which implies the chart, and carries no paging cursor).
+  const pageUrl = (p, view = chartOnly) => {
+    const u = new URLSearchParams(p);
+    for (const k of ["count", "measure", "view"]) u.delete(k);
+    if (view) for (const k of ["before", "after", "skip", "page"]) u.delete(k);
+    if (chart || wantCount || view) {
+      if (!view) u.set("count", "1");
+      if (measure !== "stories") u.set("measure", measure);
+    }
+    if (view) u.set("view", "chart");
+    return "?" + u;
+  };
+  // The chart's heading when it stands alone: the term, its mode, its sources.
+  const describe = p => {
+    const q = p.get("q"), d = sources.join(", ");
+    return `${q ? `“${q}”` : "Everything"}${p.get("mode") === "substring" ? " as a substring" : ""}${d ? ` ${q ? "on" : "from"} ${d}` : ""}, by month`;
+  };
 
   async function search(push) {
     const p = params();
     if (!ready()) return;
-    if (push) history.pushState(null, "", "?" + p);
+    if (chart && chart.key !== chartKey(p)) { chart = null; $("months").hidden = true; $("list-h").hidden = true; }
+    if (push) history.pushState(null, "", pageUrl(p));
     document.title = title(p);
     $("examples").hidden = true;
     $("out").hidden = false;
+    if (chartOnly) { // the chart on its own: no list, so no search; the count straight away
+      if (chart) renderChart(p); else count(p);
+      return;
+    }
     $("status").textContent = "searching…";
     $("actions").hidden = true;
     $("results").innerHTML = "";
     $("more").innerHTML = "";
-    if (chart && chart.key !== chartKey(p)) { chart = null; $("months").hidden = true; $("list-h").hidden = true; }
     let r;
     try {
       r = await fetch("/api/search?" + p).then(res => res.json());
@@ -314,6 +340,9 @@
     if (!chart.running && total[2]) note += " Click a month or a year to narrow the search to it.";
     $("months-note").textContent = note;
     $("compare").href = compareUrl(p);
+    $("months-h").textContent = chartOnly ? describe(p) : "Matches by month";
+    $("chart-link").href = pageUrl(p, !chartOnly);
+    $("chart-link").textContent = chartOnly ? "See the headlines and the full search" : "Chart on its own";
     $("chart").innerHTML = months.map(m => {
       const v = c.get(m);
       const sel = narrowed && from <= m + "-01" && to >= monthEnd(m);
@@ -343,14 +372,15 @@
     if (a.dataset.month) { $("from").value = a.dataset.month + "-01"; $("to").value = monthEnd(a.dataset.month); }
     else { $("from").value = a.dataset.year + "-01-01"; $("to").value = a.dataset.year + "-12-31"; }
     linkDates();
+    if (chartOnly) { location.href = pageUrl(params(), false); return; } // from the chart alone, a month opens the full search narrowed to it
     reset();
     search(true);
   });
-  const chartUrl = p => { p.set("count", "1"); if (measure !== "stories") p.set("measure", measure); else p.delete("measure"); history.replaceState(null, "", "?" + p); };
+  const chartUrl = p => history.replaceState(null, "", pageUrl(p));
   $("count").onclick = () => {
     const p = params();
+    count(p); // sets `chart` before its first await, so the URL below carries count=1
     chartUrl(p);
-    count(p);
   };
   $("measures").addEventListener("change", ev => {
     setMeasure(ev.target.value);

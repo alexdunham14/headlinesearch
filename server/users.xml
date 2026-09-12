@@ -44,12 +44,13 @@
       <networks><ip>::/0</ip></networks>
       <profile>search</profile>
       <quota>search</quota>
-      <!-- Only the one table. Without an explicit grant a users.xml user can
+      <!-- Only these tables. Without an explicit grant a users.xml user can
            also read system tables and call url(), s3() and remote(), which
            would let a read-only query make requests from the server. -->
       <grants>
         <query>GRANT SELECT ON default.headlines</query>
         <query>GRANT SELECT ON default.labels</query>
+        <query>GRANT SELECT ON default.sources</query>
       </grants>
     </search>
     <ingest>

@@ -3,51 +3,52 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Compare - Headline Search</title>
+<title>Compare terms - News Headline Search</title>
 <meta name="description" content="Several news headline searches on one chart, month by month since 2019, as counts or as a share of all the headlines GDELT collected.">
 <link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:,">
 </head>
 <body>
-<h1>Compare</h1>
-<p class="lede">Several <a href="./">headline searches</a> on one chart, month by month: how many stories, outlets or articles carried each term, as counts or as a share of everything GDELT collected that month. <span id="stats"></span></p>
+<h1><a href="./">News Headline Search</a></h1>
+<h2 class="sub">Compare terms</h2>
+<p class="lede">Several <a href="./">headline searches</a> on one chart, month by month: how many stories, outlets or articles include each term, as counts or as a share of everything GDELT collected that month. <span id="stats"></span></p>
 
 <noscript><p>The chart needs JavaScript; the counts come from a database behind this page.</p></noscript>
 <form id="f" class="panel">
   <ol id="series" class="series" aria-label="Terms"></ol>
   <div class="tools">
     <button type="button" class="chip" id="add" title="Up to six terms">+ another term</button>
-    <button type="submit" class="go">Draw</button>
+    <button type="submit" class="go">Plot</button>
   </div>
   <div class="opts">
-    <div class="group" role="group" aria-label="Measure">
-      <span class="lbl">lines</span>
+    <div class="group" role="group" aria-label="Count">
+      <span class="lbl">Count</span>
       <span class="seg" id="measures">
         <label><input type="radio" name="measure" value="stories" checked><span>stories</span></label>
-        <label id="measure-outlets"><input type="radio" name="measure" value="outlets"><span>outlets</span></label>
+        <label><input type="radio" name="measure" value="outlets"><span>outlets</span></label>
         <label><input type="radio" name="measure" value="articles"><span>articles</span></label>
       </span>
     </div>
     <div class="group" role="group" aria-label="Scale">
-      <span class="lbl">scale</span>
+      <span class="lbl">Scale</span>
       <span class="seg" id="scales">
         <label><input type="radio" name="scale" value="count" checked><span>counts</span></label>
         <label><input type="radio" name="scale" value="share"><span>share of all headlines</span></label>
-        <label><input type="radio" name="scale" value="peak"><span>each at its peak = 100</span></label>
       </span>
     </div>
   </div>
   <div class="opts">
     <div class="group dates" role="group" aria-label="Dates">
-      <span class="lbl">dates</span>
+      <span class="lbl">Dates</span>
       <label>from <input id="from" type="date" min="2019-10-01"></label>
       <label>to <input id="to" type="date" min="2019-10-01"></label>
       <span class="chips"><button type="button" class="chip" id="clear-dates" title="The whole archive">all dates</button></span>
     </div>
   </div>
-  <p class="help">Each term is a whole-word search, in any order, case and accents aside. OR between alternatives counts headlines with any of them (congo OR drc). site:bbc.com after a term counts one source, and its share is then of that source's headlines.</p>
+  <p class="help">Each term is a whole-word search, in any order, case and accents aside. OR between alternatives counts headlines with any of them (congo OR drc). site:bbc.com after a term counts one source, site:bbc.com,nytimes.com several, and the share is then of those sources' headlines; a site: on its own counts everything from it.</p>
 </form>
 
-<p id="examples">Try: <a href="?s=ukraine&amp;s=gaza&amp;s=sudan">ukraine, gaza, sudan</a>; <a href="?s=covid+OR+coronavirus&amp;s=flu+OR+influenza&amp;scale=share">covid against flu, as a share</a>; <a href="?s=trump+site:bbc.com&amp;s=trump+site:nytimes.com&amp;scale=share">trump on bbc.com against nytimes.com</a>; <a href="?s=el+nino+OR+la+nina&amp;s=drought&amp;s=flood+OR+floods&amp;scale=peak">el niño, drought, floods, each at its peak</a>.</p>
+<p id="examples">Try: <a href="?s=ukraine&amp;s=gaza&amp;s=sudan">ukraine, gaza, sudan</a>; <a href="?s=covid+OR+coronavirus&amp;s=flu+OR+influenza&amp;scale=share">covid against flu, as a share</a>; <a href="?s=trump+site:bbc.com&amp;s=trump+site:nytimes.com&amp;scale=share">trump on bbc.com against nytimes.com</a>; <a href="?s=el+nino+OR+la+nina&amp;s=drought&amp;s=flood+OR+floods">el niño, drought, floods</a>.</p>
 
 <div id="out" hidden>
   <p class="note" id="status"></p>
@@ -55,13 +56,13 @@
     <ul id="legend" class="legend"></ul>
     <div id="chart" class="lines"></div>
     <p class="note" id="readout"></p>
-    <p class="note">A story is a headline's first appearance anywhere in a week; an outlet, its first appearance on each site; an article, every page that carried it. A share is of the same measure over every headline GDELT collected that month, or over the source's. GDELT's set of sources is not constant (between 40 and 53 million articles a year since 2020, from a changing mix of sites), so a share across years is against a moving base; a term's share of one source's headlines is against that source's own output.</p>
+    <p class="note">A headline counts as one &ldquo;story&rdquo; on its first appearance in any source in one week. A headline counts for one &ldquo;outlet&rdquo; the first time it appears at a given source in one week. A headline counts for one &ldquo;article&rdquo; every time it appears whatsoever, regardless of previous appearances globally or for a given source. A share is of the same measure over every headline GDELT collected that month, or over the sources'. GDELT's set of sources is not constant (between 40 and 53 million articles a year since 2020, from a changing mix of sites), so a share across years is against a moving base; a term's share of one source's headlines is against that source's own output.</p>
     <p class="tools"><button type="button" class="chip" id="png">Save as image</button> <span class="note">the chart, with the terms and this page's address on it</span></p>
     <details class="tbl"><summary>as a list</summary><table id="table"></table></details>
   </section>
 </div>
 
-<footer id="meta">Data comes from GDELT and is ingested a few times per day. Headlines are page titles as GDELT recorded them. <a href="https://github.com/alexdunham14/headlinesearch">Source code</a>.</footer>
+<footer id="meta">Data comes from GDELT and is ingested a few times per day. Headlines are page titles as GDELT recorded them. <a href="sources">All sources</a>. <a href="https://github.com/alexdunham14/headlinesearch">Source code</a>.</footer>
 <script src="compare.js"></script>
 </body>
 </html>

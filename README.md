@@ -11,15 +11,23 @@ turned up in the news, or what a particular outlet headlined that week.
 ## Definition of done
 
 - A page with one search box, a word/substring toggle, a newest/oldest-first
-  toggle, a date range, an optional domain, and a plain list of results: date,
-  headline, domain, link, with the matched words marked. A page is a hundred
+  toggle, a date range, a source box and a plain list of results: the
+  headline as text (so it can be copied), the date, and the source as a
+  link to the article, with the matched words marked. A page is a hundred
   distinct stories: copies of a headline (a story on many sites, or on one
   site's many local editions, with or without the site's own label after a
-  pipe or a dash) collapse into one line with a count and the number of
-  sites. A source or a
-  month in the count can be clicked to narrow the search. The page says what
-  is loaded (first and last day, row count). The URL carries the query so a
-  search can be linked to.
+  pipe or a dash) collapse into one line with a count and "+3 more", which
+  opens the other sites that carried it, each linked to its own copy. The
+  source box suggests sites as you type (from a table of every site with
+  its article count), a chosen site becomes a chip with an × to remove it,
+  up to ten can be chosen and are searched together, and a source with an
+  empty search box lists everything from that site; "Clear all filters"
+  puts every filter back. A month in the count can be clicked to narrow
+  the search. A sources page lists every site by first letter, with its
+  article count and the first and last day it covers, and finds sites by
+  part of a name. The page says what is loaded (first and last day, row
+  count, number of sources). The URL carries the query so a search can be
+  linked to.
 - Search covers the whole corpus (English-language GKG files, 2019-10-01 to
   yesterday). Word search matches whole words, ignoring case and accents
   ("el nino" finds "El Niño" and "El Nino"; the corpus spells it both ways
@@ -36,18 +44,22 @@ turned up in the news, or what a particular outlet headlined that week.
   anywhere in a week), outlets (its first appearance on each site) and
   articles (every page), so that a story copied to a hundred pages of one
   radio group is one story and one outlet, and a wire story on three
-  hundred local sites is one story and three hundred outlets. The bars
-  show one measure, chosen under the chart; the note and the table give
-  all three.
+  hundred local sites is one story and three hundred outlets. The three
+  mean the same whatever the source filter (on one site, stories are the
+  headlines that site had first). The bars show one measure, chosen under
+  the chart; the note and the table give all three.
 - Compare mode (`/compare`): up to six terms on one chart, month by month.
   Each term is a whole-word search, with OR between alternatives (`congo OR
-  drc`) and, optionally, one source (`gaza site:bbc.com`). The lines show
-  stories, outlets or articles, as counts, as a share of all the headlines
-  GDELT collected that month (for a term with a source, of that source's
-  headlines), or each at its own peak, over a date range; a hover gives the
-  month's numbers; a table gives the same; the URL carries all of it; and
-  the chart can be saved as an image with the URL on it. The same OR works
-  in the search box, so a series can be clicked through to its headlines.
+  drc`) and, optionally, sources (`gaza site:bbc.com`, `gaza
+  site:bbc.com,nytimes.com`, or `site:bbc.com` alone for everything from
+  it). The lines show stories, outlets or articles, as counts or as a
+  share of all the headlines GDELT collected that month (for a term with
+  sources, of those sources' headlines), over a date range; a hover gives
+  the month's numbers; a table gives the same; the URL carries all of it;
+  and the chart can be saved as an image with the URL on it. The same OR
+  works in the search box, so a series can be clicked through to its
+  headlines. The search page's "Compare to other terms" button carries its
+  term, sources, measure and dates across.
 - The database is fed by a scheduled ingest that reads GDELT's master file
   list, downloads new GKG files, keeps only date, source, URL and title,
   flags each row as a story, an outlet's copy or a repeat, and inserts
@@ -79,17 +91,22 @@ Three pieces, in three places.
 2. **ClickHouse** on a small VPS (`server/`). One table, `headlines`, ordered by
    time, with a text index (ClickHouse's inverted index) over the lowercased
    titles, a bloom-filter skip index over the source domain, and a projection
-   ordered by source (`scripts/schema.sql` explains them). A read-only
-   `search` user with a quota, reachable only from the Worker.
-   `server/setup.sh` turns a fresh Debian box into this.
+   ordered by source (`scripts/schema.sql` explains them); beside it
+   `sources`, a row per site with its article count and first and last
+   headline, kept by a materialized view on every insert (86,737 sites on
+   2026-09-12). A read-only `search` user with a quota, reachable only
+   from the Worker. `server/setup.sh` turns a fresh Debian box into this.
 3. **The site** on Cloudflare Workers: `index.html`, `styles.css`, `app.js`
-   as static assets, `compare.html` and `compare.js` for compare mode, and
-   `worker.js` for `/api/search`, `/api/count`, `/api/totals` and
+   as static assets, `compare.html` and `compare.js` for compare mode,
+   `sources.html` and `sources.js` for the sources page, and `worker.js`
+   for `/api/search`, `/api/count`, `/api/totals`, `/api/sources` and
    `/api/stats`, which validate the parameters, build a parameterised
    ClickHouse query, cache the answer at the edge (an hour for searches and
-   stats, a day for counts) and rate-limit by IP (120 a minute; a search
-   with its chart is eight requests, and the page retries windows that were
-   refused once the minute has turned).
+   stats, a day for counts and source lists) and rate-limit by IP (120 a
+   minute; a search with its chart is eight requests, and the page retries
+   windows that were refused once the minute has turned). The pages are
+   in the browser's own font with the least CSS that lays them out for a
+   phone first.
 
 Search returns a page of 100 distinct headlines, newest first or oldest
 first (`sort=oldest`). The database returns rows, one per article URL, and
@@ -107,8 +124,13 @@ since GDELT's timestamps are fifteen-minute batches shared by many rows.
 Unlike a row offset, page fifty costs the same as page one, and rows
 inserted between two page loads do not shift the pages. Either direction
 reads from its end of the table and stops at the limit, so they cost the
-same. Stats is the first and last timestamp and the row count, which the
-page shows so nobody searches for 2020 while only 2025 is loaded.
+same. Stats is the first and last timestamp, the row count and the number of
+sources, which the page shows so nobody searches for 2020 while only 2025
+is loaded. Sources (`/api/sources?q=bb`, `?letter=b`) is the typeahead and
+the sources page: the sites whose name contains the text, those starting
+with it first and then the biggest, twelve of them; or every site starting
+with a letter in name order (7,200 for the biggest letter), both
+milliseconds from the `sources` table.
 Count returns matches per month for a date range, with a 20 second budget,
 and says so when it ran out. The page asks for twelve-month windows, newest
 first, and draws the chart as they arrive, about a second a window since
@@ -186,16 +208,28 @@ copies and 11% same-site repeats: 184.7M, 103.4M and 37.3M of 325.4M; in
 August 2026 iHeart's 218,853 rows were 7,972 stories).
 The counts are then `countIf(copy = 0)`, `countIf(copy <= 1)` and
 `count()`, all answered from the text index plus the flag column (a month
-of "trump" in 0.14 s). Two limits: outlets rewrite wire headlines, so
+of "trump" in 0.14 s), and the same three with a source filter, so the
+definitions on the page hold everywhere: on bbc.com "stories" are the
+headlines bbc.com had before anyone else and "outlets" its own first
+sightings of any headline (until 2026-09-12 a sourced count used the
+latter for both and hid outlets). Two limits: outlets rewrite wire headlines, so
 "stories" overcounts by the rewrites, a consistent overcount a trend can
 live with; and the week is a choice, so a title that comes back after a
 quiet week is a story again.
 
 What no title index can do is prune on a source, so a source filter is
 served by a projection instead: a second copy of the rows ordered by
-(domain, ts), which ClickHouse picks whenever the query names a domain, so
-"hurricane" on irishtimes.com reads that site's rows and nothing else. Its
-price is the disk, about as much again as the table. The Worker turns
+(domain, ts), which ClickHouse picks whenever the query names a domain (or
+several: `domain IN` over a bound array picks it too), so "hurricane" on
+irishtimes.com reads that site's rows and nothing else. Its price is the
+disk, about as much again as the table. A search with a source and no
+term at all is the cheapest kind, the tail of that site's rows (measured
+2026-09-12 as the search user: bbc.com newest-first 0.14 s, iheart.com
+with its 15 million rows 0.9 s, three sites together 0.35 s, the three
+biggest 1.6 s; a no-term count of three sites over the whole archive
+0.33 s). A term over several sources costs a pass over each site's rows,
+about two seconds a site over the whole archive ("hurricane" on three
+sites 5.8 s), which is why the Worker takes at most ten. The Worker turns
 projections on only for a query with a source: left to itself ClickHouse
 also picked the projection for every whole-archive search, since in its lazy
 skip-index mode the table looks like a full scan and the projection has

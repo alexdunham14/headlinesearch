@@ -1,5 +1,6 @@
 // Compare mode: up to six terms on one chart, month by month. Each term is a
-// whole-word search (OR between alternatives, an optional site:domain), and
+// whole-word search (OR between alternatives, optional site:domain filters,
+// or a site: on its own for everything from that source), and
 // each is counted by the same /api/count in the same twelve-month windows
 // as the search page's chart, so the two share the edge cache; a share is
 // against /api/totals, the three counts a month with no term. The lines are
@@ -22,7 +23,7 @@
 
   const MAX = 6;
   const MEASURES = ["stories", "outlets", "articles"];
-  const SCALES = ["count", "share", "peak"];
+  const SCALES = ["count", "share"];
   // Six line colours on white and six on the dark background (the image is
   // always drawn on white); text and gridline colours follow styles.css.
   const PALETTE = {
@@ -57,12 +58,15 @@
     $("add").hidden = rows().length >= MAX;
     return input;
   }
-  // "gaza site:bbc.com" is the words "gaza" on the source bbc.com; the site
-  // can go anywhere in the text, the last one counts.
+  // "gaza site:bbc.com" is the words "gaza" on the source bbc.com;
+  // "site:bbc.com,nytimes.com" or two site: terms name several sources,
+  // anywhere in the text; `domain` is the list, comma-joined and sorted, as
+  // the Worker takes it. A term with a site: and no words is everything
+  // from those sources.
   function parseSeries(text) {
-    let domain = "";
-    const q = text.replace(/(?:^|\s)site:([a-z0-9.-]+)(?=\s|$)/gi, (m, d) => { domain = d.toLowerCase(); return " "; }).replace(/\s+/g, " ").trim();
-    return { text: text.replace(/\s+/g, " ").trim(), q, domain };
+    const ds = new Set();
+    const q = text.replace(/(?:^|\s)site:([a-z0-9.,-]+)(?=\s|$)/gi, (m, d) => { d.toLowerCase().split(",").filter(Boolean).forEach(x => ds.add(x)); return " "; }).replace(/\s+/g, " ").trim();
+    return { text: text.replace(/\s+/g, " ").trim(), q, domain: [...ds].sort().join(",") };
   }
   const read = () => rows().map(i => parseSeries(i.value)).filter(s => s.text);
 
@@ -150,7 +154,7 @@
     const series = read();
     if (!series.length) return;
     if (push) history.pushState(null, "", toUrl(series));
-    document.title = `${series.map(s => s.text).join(", ")} - Headline Search`;
+    document.title = `${series.map(s => s.text).join(", ")} - News Headline Search`;
     $("examples").hidden = true;
     $("out").hidden = false;
     const key = series.map(s => s.text).join("\n");
@@ -158,7 +162,7 @@
     gen++;
     state = {
       key, gen,
-      series: series.map((s, i) => ({ ...s, i, counts: new Map(), partial: new Set(), have: new Set(), pending: 0, failed: 0, limited: 0, error: s.q.length < 2 ? "needs at least two characters" : "" })),
+      series: series.map((s, i) => ({ ...s, i, counts: new Map(), partial: new Set(), have: new Set(), pending: 0, failed: 0, limited: 0, error: s.q.length < 2 && !(s.q.length === 0 && s.domain) ? "needs at least two characters" : "" })),
       totals: new Map(),
     };
     statsReady.finally(() => { if (state.gen !== gen) return; schedule(); render(); });
@@ -176,7 +180,8 @@
         if (ser.error || ser.have.has(wk)) continue;
         ser.have.add(wk);
         ser.pending++;
-        const q = new URLSearchParams({ q: ser.q, mode: "word", from, to });
+        const q = new URLSearchParams({ mode: "word", from, to });
+        if (ser.q) q.set("q", ser.q);
         if (ser.domain) q.set("domain", ser.domain);
         enqueue({ gen: s.gen, url: "/api/count?" + q, skip: () => !!ser.error, done: r => { ser.pending--; take(ser, w, r); } });
       }
@@ -218,16 +223,10 @@
     const months = span();
     const k = MEASURES.indexOf(measure);
     const cols = colours();
-    // With a source, stories are that site's first sightings, which is what
-    // outlets would be too, so outlets is offered only while some series has none.
-    const allSourced = s.series.every(x => x.domain);
-    if (allSourced && measure === "outlets") setMeasure("stories");
-    $("measure-outlets").hidden = allSourced;
     const value = (ser, m) => {
       const v = ser.counts.get(m);
       if (!v) return null;
       if (scale === "count") return v[k];
-      if (scale === "peak") return ser.max ? v[k] / ser.max * 100 : 0;
       const t = s.totals.get(ser.domain)?.counts.get(m);
       return t ? (t[k] ? v[k] / t[k] * 100 : 0) : null;
     };
@@ -253,8 +252,7 @@
     else if (holdUntil > Date.now()) status = `Too many requests from here in a minute; the rest wait ${Math.ceil((holdUntil - Date.now()) / 1000)} s…`;
     else if (pending) status = `Counting… ${asked - pending} of ${asked} windows so far.`;
     else {
-      const what = scale === "share" ? `${cap(measure)} a month as a share of all ${measure} that month` : scale === "peak" ? `${cap(measure)} a month, each term at its own peak = 100` : `${cap(measure)} a month`;
-      status = `${what}, ${fmtMonth(months[0])} to ${fmtMonth(months[months.length - 1])}.`;
+      status = `${what()}, ${fmtMonth(months[0])} to ${fmtMonth(months[months.length - 1])}.`;
       if (partial) status += " Months marked ~ hit the time limit, so their counts are low.";
       if (failed) status += ` ${failed} window${failed === 1 ? "" : "s"} could not be counted${limited ? " (too many requests from here in a minute; draw again in a minute to fill them in)" : ""}.`;
     }
@@ -264,10 +262,11 @@
     $("legend").innerHTML = s.series.map((ser, i) => {
       const sw = `<i style="background:${cols[i]}"></i>`;
       if (ser.error) return `<li>${sw}<span class="t">${esc(ser.text)}</span> <span class="note">${esc(ser.error)}</span></li>`;
-      const lp = new URLSearchParams({ q: ser.q, count: 1 });
+      const lp = new URLSearchParams({ count: 1 });
+      if (ser.q) lp.set("q", ser.q);
       if (ser.domain) lp.set("domain", ser.domain);
       if (measure !== "stories") lp.set("measure", measure);
-      const share = scale === "share" && ser.tot[k] ? `, ${fmtPct(ser.total[k] / ser.tot[k] * 100)} of ${ser.domain ? `${esc(ser.domain)}'s` : "all"} ${measure}` : "";
+      const share = scale === "share" && ser.tot[k] ? `, ${fmtPct(ser.total[k] / ser.tot[k] * 100)} of ${whose(ser)} ${measure}` : "";
       const peak = ser.peakMonth ? `, most in ${fmtMonth(ser.peakMonth)} (${fmt(ser.max)})` : "";
       return `<li>${sw}<a class="t" href="./?${lp}" title="The headlines">${esc(ser.text)}</a> <span class="note">${fmt(ser.total[k])} ${measure}${share}${peak}</span></li>`;
     }).join("");
@@ -285,13 +284,16 @@
       if (!v) return "";
       const tilde = ser.partial.has(m) ? "~" : "";
       if (scale === "share") { const x = value(ser, m); return x == null ? tilde + fmt(v[k]) : `${tilde}${fmtPct(x)} <span class="n">${fmt(v[k])}</span>`; }
-      if (scale === "peak") return `${tilde}${fmt(v[k])} <span class="n">${Math.round(value(ser, m))}</span>`;
       return tilde + fmt(v[k]);
     };
     $("table").innerHTML = `<tr><th>month</th>${s.series.map((ser, i) => `<th><i style="background:${cols[i]}"></i>${esc(ser.text)}</th>`).join("")}</tr>` +
       months.filter(m => s.series.some(ser => ser.counts.get(m))).map(m => `<tr><td>${fmtMonth(m)}</td>${s.series.map(ser => `<td>${cell(ser, m)}</td>`).join("")}</tr>`).join("");
   }
-  const cap = s => s[0].toUpperCase() + s.slice(1);
+  // "Results per month", or "Results per month as a share of all stories that
+  // month": the status line and the image's title. `whose`: whose headlines a
+  // share is of ("all", "bbc.com's", "the 3 sources'").
+  const what = () => scale === "share" ? `Results per month as a share of all ${measure} that month` : "Results per month";
+  const whose = ser => { const ds = ser.domain ? ser.domain.split(",") : []; return !ds.length ? "all" : ds.length === 1 ? `${esc(ds[0])}'s` : `the ${ds.length} sources'`; };
 
   // Axis ticks: a step of 1, 2, 2.5 or 5 times a power of ten, four or five of them.
   function ticks(top) {
@@ -302,7 +304,7 @@
     for (let v = 0; v < top + step - 1e-9; v += step) out.push(+v.toPrecision(12));
     return out;
   }
-  const fmtTick = v => scale === "share" ? `${+v.toPrecision(3)}%` : scale === "peak" ? String(Math.round(v)) : fmtShort(v);
+  const fmtTick = v => scale === "share" ? `${+v.toPrecision(3)}%` : fmtShort(v);
 
   // The chart as SVG markup, `w` by `h` pixels: gridlines with tick labels,
   // year (or month) labels along the bottom, one path per series with gaps
@@ -317,7 +319,7 @@
     const iw = w - padL - padR, ih = h - padT - padB, n = months.length;
     const x = i => padL + (n > 1 ? i / (n - 1) * iw : iw / 2);
     const y = v => padT + ih - (ymax ? v / ymax * ih : 0);
-    let out = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" font-family="system-ui, sans-serif" font-size="11" role="img" aria-label="Line chart">`;
+    let out = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" font-size="11" role="img" aria-label="Line chart">`;
     tk.forEach((t, i) => {
       out += `<line x1="${padL}" x2="${w - padR}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" stroke="${th.line}"/>`;
       out += `<text x="${padL - 5}" y="${(y(t) + 3.5).toFixed(1)}" text-anchor="end" fill="${th.muted}">${labels[i]}</text>`;
@@ -379,7 +381,7 @@
       const v = ser.counts.get(m);
       if (!v) return "";
       const t = state.totals.get(ser.domain)?.counts.get(m);
-      const extra = scale === "share" ? (t ? ` (${fmtPct(t[k] ? v[k] / t[k] * 100 : 0)} of ${fmtShort(t[k])})` : "") : scale === "peak" ? ` (${Math.round(ser.vals[i])})` : "";
+      const extra = scale === "share" ? (t ? ` (${fmtPct(t[k] ? v[k] / t[k] * 100 : 0)} of ${fmtShort(t[k])})` : "") : "";
       return ` <span class="rd"><i style="background:${cols[j]}"></i>${esc(ser.text)} ${ser.partial.has(m) ? "~" : ""}${fmt(v[k])}${extra}</span>`;
     }).join("");
   }
@@ -393,17 +395,16 @@
     const months = span();
     const cols = PALETTE.light, k = MEASURES.indexOf(measure);
     const W = 1100, M = 28, CH = 380;
-    const what = scale === "share" ? `${cap(measure)} a month as a share of all ${measure} that month` : scale === "peak" ? `${cap(measure)} a month, each at its own peak = 100` : `${cap(measure)} a month`;
     const legend = s.series.filter(x => !x.error).map((ser, i) => {
-      const share = scale === "share" && ser.tot[k] ? `, ${fmtPct(ser.total[k] / ser.tot[k] * 100)} of ${ser.domain ? `${ser.domain}'s` : "all"} ${measure}` : "";
+      const share = scale === "share" && ser.tot[k] ? `, ${fmtPct(ser.total[k] / ser.tot[k] * 100)} of ${whose(ser).replace(/&#39;/g, "'")} ${measure}` : "";
       return { c: cols[s.series.indexOf(ser)], text: `${ser.text}: ${fmt(ser.total[k])} ${measure}${share}${ser.peakMonth ? `, most in ${fmtMonth(ser.peakMonth)} (${fmt(ser.max)})` : ""}` };
     });
     const url = location.origin + location.pathname + location.search;
     const urlLines = url.match(/.{1,130}/g) || [url];
     const H = M + 26 + legend.length * 19 + 14 + CH + 12 + urlLines.length * 15 + 18 + M;
     let y = M + 18;
-    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="system-ui, sans-serif"><rect width="100%" height="100%" fill="#fff"/>`;
-    svg += `<text x="${M}" y="${y}" font-size="17" fill="${PRINT.ink}">${esc(what)}, ${fmtMonth(months[0])} to ${fmtMonth(months[months.length - 1])}</text>`;
+    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="100%" height="100%" fill="#fff"/>`;
+    svg += `<text x="${M}" y="${y}" font-size="17" fill="${PRINT.ink}">${esc(what())}, ${fmtMonth(months[0])} to ${fmtMonth(months[months.length - 1])}</text>`;
     y += 12;
     for (const l of legend) {
       y += 19;
@@ -483,7 +484,7 @@
 
   window.onpopstate = () => {
     if (fromUrl()) draw(false);
-    else { $("examples").hidden = false; $("out").hidden = true; document.title = "Compare - Headline Search"; }
+    else { $("examples").hidden = false; $("out").hidden = true; document.title = "Compare terms - News Headline Search"; }
   };
   if (fromUrl()) draw(false);
 })();

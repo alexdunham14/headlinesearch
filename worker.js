@@ -1,12 +1,13 @@
-// /api/search, /api/count, /api/totals and /api/stats: validate the query
-// string, build one of three fixed ClickHouse queries with bound parameters
-// (totals is the count query without its term), run it as the read-only
-// `search` user, cache the answer at the edge. Everything else is a static
-// asset. Nothing a visitor sends ever reaches ClickHouse as SQL.
+// /api/search, /api/count, /api/totals, /api/sources and /api/stats:
+// validate the query string, build one of a few fixed ClickHouse queries
+// with bound parameters (totals is the count query without its term), run
+// it as the read-only `search` user, cache the answer at the edge.
+// Everything else is a static asset. Nothing a visitor sends ever reaches
+// ClickHouse as SQL.
 //
 // Secrets: CH_URL (e.g. http://db.example.com:8123; a hostname, not a bare
 // IP, which Cloudflare refuses with error 1003), CH_PASSWORD (the `search`
-// user, who reads `headlines` and `labels`). Binding:
+// user, who reads `headlines`, `labels` and `sources`). Binding:
 // SEARCH_LIMIT (rate limit per IP, see wrangler.jsonc: 120 a minute, where a
 // search with its chart is eight requests; the page retries what is refused).
 
@@ -27,13 +28,20 @@ const MAX_SKIP = 10000;
 // cannot prune (see README).
 const TIME_LIMIT = 20;
 const FIRST_DAY = "2019-10-01";
+// A search may name several sources (domain=bbc.com,nytimes.com). With a
+// term, each source is a pass over that site's rows on the by_domain
+// projection, about two seconds a site over the whole archive (measured
+// 2026-09-12: "hurricane" on three sites 5.8 s), so the list is capped and
+// the time limit is the backstop.
+const MAX_DOMAINS = 10;
 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    if (!["/api/search", "/api/count", "/api/totals", "/api/stats"].includes(url.pathname)) return env.ASSETS.fetch(request);
+    if (!["/api/search", "/api/count", "/api/totals", "/api/sources", "/api/stats"].includes(url.pathname)) return env.ASSETS.fetch(request);
     if (request.method !== "GET") return json({ error: "GET only" }, 405);
     if (url.pathname === "/api/stats") return stats(env, ctx, url);
+    if (url.pathname === "/api/sources") return sources(request, env, ctx, url);
 
     // Totals (compare mode's denominator) are the three counts a month with
     // no term: the count query, parsed and cached the same way, minus the term.
@@ -69,22 +77,71 @@ export default {
   },
 };
 
-// What is loaded: first and last timestamp and the row count. Takes no
-// parameters, so one cache entry for everyone, an hour at a time.
+// What is loaded: first and last timestamp, the row count and the number of
+// sources. Takes no parameters, so one cache entry for everyone, an hour at
+// a time.
 async function stats(env, ctx, url) {
-  const key = new Request(`${url.origin}/api/stats`);
+  const key = new Request(`${url.origin}/api/stats?v=2`);
   const cache = caches.default;
   const hit = await cache.match(key);
   if (hit) return hit;
   let body;
   try {
     const r = await clickhouse(env, "SELECT min(ts) AS first, max(ts) AS last, count() AS rows FROM headlines FORMAT JSON", {}, { max_execution_time: 10 });
+    const n = await clickhouse(env, "SELECT uniqExact(domain) AS sources FROM sources FORMAT JSON", {}, { max_execution_time: 10 });
     const x = r.data[0];
-    body = { first: x.first, last: x.last, rows: Number(x.rows) };
+    body = { first: x.first, last: x.last, rows: Number(x.rows), sources: Number(n.data[0].sources) };
   } catch (e) {
     return json({ error: e.message }, 502);
   }
   const res = json(body, 200, "public, max-age=3600");
+  ctx.waitUntil(cache.put(key, res.clone()));
+  return res;
+}
+
+// The source index, from the `sources` table (scripts/schema.sql: a row per
+// site with its article count and first and last headline, kept by a
+// materialized view). `q=bb` gives up to twelve sites whose name contains
+// the text, those starting with it first, then the biggest; `letter=b`
+// gives every site whose name starts with that letter (`letter=0`, a
+// digit) in name order, at most 10,000 (the biggest letter has 7,200 as of
+// 2026-09-12). Either is milliseconds on 87 thousand rows; cached a day.
+async function sources(request, env, ctx, url) {
+  const p = url.searchParams;
+  const q = (p.get("q") || "").trim().toLowerCase();
+  const letter = (p.get("letter") || "").trim().toLowerCase();
+  const params = {};
+  let cond, order, limit;
+  if (letter) {
+    if (!/^[a-z0]$/.test(letter)) return json({ error: "letter is a-z, or 0 for a digit" }, 400);
+    cond = letter === "0" ? "match(domain, '^[0-9]')" : "startsWith(domain, {l:String})";
+    params.l = letter;
+    order = "domain";
+    limit = 10000;
+  } else {
+    if (!q || q.length > 100 || /[^a-z0-9.-]/.test(q)) return json({ error: "q is part of a site name, like bbc" }, 400);
+    cond = "domain LIKE {pat:String}";
+    params.pat = "%" + like(q) + "%";
+    params.q = q;
+    order = "startsWith(domain, {q:String}) DESC, n DESC, domain";
+    limit = 12;
+  }
+  const key = new Request(`${url.origin}/api/sources?${new URLSearchParams({ v: 1, q: letter ? "" : q, letter })}`);
+  const cache = caches.default;
+  const hit = await cache.match(key);
+  if (hit) return hit;
+  const ip = request.headers.get("cf-connecting-ip") || "0";
+  const { success } = await env.SEARCH_LIMIT.limit({ key: ip });
+  if (!success) return json({ error: "Too many searches; wait a minute.", rateLimited: true }, 429);
+  let body;
+  try {
+    const sql = `SELECT domain, sum(n) AS n, min(first) AS first, max(last) AS last FROM sources WHERE ${cond} GROUP BY domain ORDER BY ${order} LIMIT ${limit} FORMAT JSON`;
+    const r = await clickhouse(env, sql, params, { max_execution_time: 10 });
+    body = { sources: r.data.map((x) => [x.domain, Number(x.n), x.first.slice(0, 10), x.last.slice(0, 10)]) };
+  } catch (e) {
+    return json({ error: e.message }, 502);
+  }
+  const res = json(body, 200, "public, max-age=86400");
   ctx.waitUntil(cache.put(key, res.clone()));
   return res;
 }
@@ -94,29 +151,33 @@ async function stats(env, ctx, url) {
 // In word mode the query is alternatives separated by OR (upper case, on its
 // own: "congo OR drc", "el nino OR la nina"), each a set of words that must
 // all be present; `groups` holds them. Substring mode takes OR literally. A
-// totals request has no query at all.
+// totals request has no query at all, and a search or count with a source
+// may have none either: then it is every headline from those sites.
+// `domains` is the source list, sorted so that the same set is the same
+// cache entry whatever order it was chosen in.
 function parse(p, totals = false) {
   const q = totals ? "" : (p.get("q") || "").trim();
-  if (!totals && q.length < 2) throw new Error("query must be at least two characters");
   if (q.length > 200) throw new Error("query too long");
+  const domains = [...new Set((p.get("domain") || "").toLowerCase().split(",").map((d) => d.trim()).filter(Boolean))].sort();
+  if (domains.length > MAX_DOMAINS) throw new Error(`at most ${MAX_DOMAINS} sources`);
+  for (const d of domains) if (d.length > 100 || /[^a-z0-9.-]/.test(d)) throw new Error("a source is a site name like bbc.com");
+  if (!totals && q.length < 2 && !(q.length === 0 && domains.length)) throw new Error(domains.length ? "query must be at least two characters" : "type at least two characters, or choose a source");
   const mode = p.get("mode") === "substring" ? "substring" : "word";
   const split = (s) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-  const groups = mode === "word" ? q.split(/(?<=^|\s)OR(?=\s|$)/).map(split).filter((g) => g.length) : [split(q)];
-  if (!totals && mode === "word" && groups.length === 0) throw new Error("no words to search for");
+  const groups = !q ? [] : mode === "word" ? q.split(/(?<=^|\s)OR(?=\s|$)/).map(split).filter((g) => g.length) : [split(q)];
+  if (q && mode === "word" && groups.length === 0) throw new Error("no words to search for");
   if (groups.length > 8) throw new Error("at most eight alternatives");
   if (groups.some((g) => g.length > 8)) throw new Error("at most eight words");
   const from = day(p.get("from"), FIRST_DAY);
   const to = day(p.get("to"), "2100-01-01");
   if (from > to) throw new Error("from is after to");
-  const domain = (p.get("domain") || "").trim().toLowerCase();
-  if (domain.length > 100 || /[^a-z0-9.-]/.test(domain)) throw new Error("domain looks wrong");
   const sort = p.get("sort") === "oldest" ? "oldest" : "newest";
   // Where the previous page stopped: its last timestamp (before= going
   // newest-first, after= going oldest-first) and how many rows at that
   // timestamp it already showed.
   const cursor = stamp(p.get(sort === "oldest" ? "after" : "before"));
   const skip = cursor ? Math.min(Math.max(parseInt(p.get("skip") || "0", 10) || 0, 0), MAX_SKIP) : 0;
-  return { q, mode, groups, from, to, domain, sort, cursor, skip, totals };
+  return { q, mode, groups, from, to, domains, sort, cursor, skip, totals };
 }
 
 // A cursor timestamp is written compactly (20260911183000, GDELT's own
@@ -137,7 +198,7 @@ function day(s, fallback) {
 // v is the response shape: bump it when the shape changes, so entries cached
 // at the edge under the old shape (a day, for counts) are never served.
 function canonical(q) {
-  return new URLSearchParams({ v: 2, q: q.q, mode: q.mode, from: q.from, to: q.to, domain: q.domain, sort: q.sort, cursor: q.cursor, skip: q.skip }).toString();
+  return new URLSearchParams({ v: 3, q: q.q, mode: q.mode, from: q.from, to: q.to, domain: q.domains.join(","), sort: q.sort, cursor: q.cursor, skip: q.skip }).toString();
 }
 
 // ----------------------------------------------------------------- queries
@@ -183,15 +244,23 @@ function fold(s) {
 // are a hasAllTokens each, joined by OR, which the index also prunes on
 // (measured 2026-09-12: "el nino OR la nina" over a year read a fifth of the
 // granules in 0.3 s).
+//
+// Sources: one is an equality, several an IN over a bound array (the
+// by_domain projection serves both; measured 2026-09-12: three sites
+// newest-first with no term 0.35 s). No term at all (a totals request, or a
+// search over some sites) is every headline in the range.
 function where(q, params) {
   const conds = ["ts >= {from:Date}", "ts < {to:Date} + INTERVAL 1 DAY"];
   params.from = q.from;
   params.to = q.to;
-  if (q.domain) {
+  if (q.domains.length === 1) {
     conds.push("domain = {domain:String}");
-    params.domain = q.domain;
+    params.domain = q.domains[0];
+  } else if (q.domains.length) {
+    conds.push("domain IN {domains:Array(String)}");
+    params.domains = "[" + q.domains.map((d) => `'${d}'`).join(",") + "]"; // validated: letters, digits, dots, dashes
   }
-  if (q.totals) {
+  if (q.totals || !q.q) {
     // no term: every headline in the range
   } else if (q.mode === "substring") {
     const lq = q.q.toLowerCase();
@@ -233,8 +302,8 @@ function like(s) {
 // ClickHouse to ignore the text index; on the projection hasAllTokens runs
 // as a plain function over that site's rows, about two seconds.
 function settings(q, extra) {
-  const s = { ...extra, optimize_use_projections: q.domain ? 1 : 0 };
-  if (q.domain) s.ignore_data_skipping_indices = "tx";
+  const s = { ...extra, optimize_use_projections: q.domains.length ? 1 : 0 };
+  if (q.domains.length) s.ignore_data_skipping_indices = "tx";
   return s;
 }
 
@@ -286,7 +355,11 @@ async function runSearch(env, q) {
 
 // Collapse rows with the same story key into one, in order of first
 // appearance, up to `want` stories; `used` is how many rows that took, which
-// is where the next page starts. The first copy's title is the one shown.
+// is where the next page starts. The first copy's title and URL are the ones
+// shown; the other copies come along as [domain, url] pairs (at most the
+// WINDOW rows of the page between them all), so the page can list the other
+// sites that carried the story, each linked to its own article. `sites` is
+// the number of distinct sites.
 function collapse(rows, want) {
   const groups = [];
   const seen = new Map();
@@ -296,27 +369,31 @@ function collapse(rows, want) {
     let g = seen.get(key);
     if (!g) {
       if (groups.length === want) break;
-      g = { ts: row.ts, domain: row.domain, url: row.url, title: row.title, n: 0, sites: new Set() };
+      g = { ts: row.ts, domain: row.domain, url: row.url, title: row.title, n: 0, copies: [], sites: new Set([row.domain]) };
       groups.push(g);
       seen.set(key, g);
+    } else {
+      g.copies.push([row.domain, row.url]);
+      g.sites.add(row.domain);
     }
     g.n++;
-    g.sites.add(row.domain);
     used++;
   }
   return { groups: groups.map((g) => ({ ...g, sites: g.sites.size })), used };
 }
 
 // Three counts a month from the copy flag (scripts/schema.sql): stories are
-// first sightings (copy = 0), outlets first sightings per site (copy <= 1),
-// articles every row. With a source, "stories" means that site's own first
-// sightings (copy <= 1), since whether it was first anywhere is a different
-// question; the page then does not offer outlets, which would be the same.
-// A totals request (q.totals, compare mode's denominator) is the same query
-// with no term: every headline in the range, by month.
+// first sightings anywhere (copy = 0), outlets first sightings per site
+// (copy <= 1), articles every row. The same three whatever the source
+// filter, so that the definitions on the page hold everywhere: on one site,
+// "stories" are the headlines that site had first and "outlets" its own
+// first sightings of any headline (until 2026-09-12 a sourced count folded
+// the two together and hid outlets). A totals request (q.totals, compare
+// mode's denominator) is the same query with no term: every headline in
+// the range, by month.
 async function runCount(env, q) {
   const params = {};
-  const sql = `SELECT toStartOfMonth(ts) AS month, countIf(copy <= ${q.domain ? 1 : 0}) AS stories, countIf(copy <= 1) AS outlets, count() AS articles
+  const sql = `SELECT toStartOfMonth(ts) AS month, countIf(copy = 0) AS stories, countIf(copy <= 1) AS outlets, count() AS articles
     FROM headlines WHERE ${where(q, params)} GROUP BY month ORDER BY month FORMAT JSON`;
   const r = await clickhouse(env, sql, params, settings(q, { max_execution_time: TIME_LIMIT, timeout_overflow_mode: "break" }));
   const partial = r.statistics.elapsed >= TIME_LIMIT;

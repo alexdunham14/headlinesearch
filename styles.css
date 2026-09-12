@@ -1,62 +1,81 @@
-/* One column of text. The search panel, the month chart and the headline list are
-   the three blocks; small uppercase labels name things, the serif carries the rest. */
-:root { --ink: #1a1a1a; --bg: #fff; --muted: #666; --faint: #999; --line: #ddd; --hair: #eee; --panel: #f4f3ef; --field: #fff; --edge: #b9b9b9; --bar: #4d6d9a; --bar-sel: #23406b; --band: rgba(0, 0, 0, .06); --mark: #fff0a8; }
+/* One column of text in the browser's own font, written for a phone first.
+   The search panel, the month chart and the headline list are the three
+   blocks; bold labels name things; the panel is the one coloured thing. */
+:root { --ink: #1a1a1a; --bg: #fff; --muted: #555; --faint: #888; --line: #ccc; --hair: #e4e4e4; --panel: #e6eef9; --panel-edge: #b7cbe6; --field: #fff; --edge: #8ea6c7; --bar: #2f5d9e; --bar-sel: #1b3a66; --band: rgba(47, 93, 158, .12); --mark: #fff0a8; --sel: #dbe7f7; }
 @media (prefers-color-scheme: dark) {
-  :root { --ink: #e6e6e6; --bg: #141414; --muted: #a3a3a3; --faint: #777; --line: #333; --hair: #262626; --panel: #1e1e1e; --field: #141414; --edge: #555; --bar: #7aa2d8; --bar-sel: #b3cdf0; --band: rgba(255, 255, 255, .08); --mark: #4a3d00; }
+  :root { --ink: #e6e6e6; --bg: #141414; --muted: #a3a3a3; --faint: #777; --line: #333; --hair: #262626; --panel: #16212f; --panel-edge: #2d4461; --field: #0f1620; --edge: #4a6386; --bar: #7aa2d8; --bar-sel: #b3cdf0; --band: rgba(122, 162, 216, .18); --mark: #4a3d00; --sel: #22354d; }
   a { color: #9cc4ff; }
 }
-body { max-width: 60rem; margin: 1.5rem auto; padding: 0 1rem; font: 1rem/1.5 Georgia, "Times New Roman", serif; color: var(--ink); background: var(--bg); }
-h1 { font-weight: normal; font-size: 1.9rem; margin: 0 0 .4rem; }
-h2, .lbl { font: .72rem/1.4 system-ui, sans-serif; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); margin: 0; }
-h2 { margin: 1.4rem 0 .5rem; }
-.lede { margin: 0 0 1rem; }
+body { max-width: 60rem; margin: 1rem auto; padding: 0 .8rem; line-height: 1.4; color: var(--ink); background: var(--bg); }
+h1 { font-size: 1.8rem; margin: 0 0 .5rem; }
+h1 a { color: inherit; text-decoration: underline; }
+h2 { font-size: 1.15rem; margin: 1.3rem 0 .4rem; }
+h2.sub { margin: 0 0 .5rem; }
+.lbl { font-weight: bold; }
+.lede { margin: 0 0 .6rem; }
+.info { margin: 0 0 1rem; }
+.info summary { cursor: pointer; }
+.info p { margin: .4rem 0 0 1rem; }
 input, button { font: inherit; color: inherit; }
-input[type=search], input[type=text], input[type=date] { appearance: none; -webkit-appearance: none; background: var(--field); border: 1px solid var(--edge); border-radius: .4rem; padding: .35rem .6rem; min-width: 0; }
-input:focus-visible, .chip:focus-visible, .go:focus-visible { outline: 2px solid var(--bar); outline-offset: 1px; }
+[hidden] { display: none !important; } /* the attribute wins over any display rule below */
+input[type=search], input[type=text], input[type=date] { appearance: none; -webkit-appearance: none; background: var(--field); border: 1px solid var(--edge); border-radius: .35rem; padding: .35rem .6rem; min-width: 0; }
+input:focus-visible, .chip:focus-visible, .go:focus-visible, .big:focus-visible, .x:focus-visible { outline: 2px solid var(--bar); outline-offset: 1px; }
 
 /* The search panel */
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: .7rem; padding: 1rem; margin: 1rem 0; }
+.panel { background: var(--panel); border: 1px solid var(--panel-edge); border-radius: .6rem; padding: .8rem; margin: 1rem 0; }
 .q { display: flex; gap: .5rem; }
 #q { flex: 1 1 auto; font-size: 1.1rem; padding: .5rem .75rem; }
-.go { border: 0; border-radius: .4rem; padding: .5rem 1.1rem; background: var(--ink); color: var(--bg); cursor: pointer; }
-.opts { display: flex; flex-wrap: wrap; gap: .7rem 2rem; margin-top: .9rem; }
+.go { border: 0; border-radius: .35rem; padding: .5rem 1rem; background: var(--bar); color: #fff; cursor: pointer; }
+.opts { display: flex; flex-direction: column; gap: .7rem; margin-top: .9rem; }
 .group { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .5rem; min-width: 0; }
-.group > .lbl { min-width: 3.6rem; }
-.seg { display: inline-flex; border: 1px solid var(--edge); border-radius: 999px; background: var(--field); overflow: hidden; }
+.group > .lbl { width: 100%; }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--edge); border-radius: .5rem; background: var(--field); overflow: hidden; }
 .seg label { position: relative; }
 .seg input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
-.seg span { display: block; padding: .25rem .8rem; font-size: .9rem; white-space: nowrap; }
-.seg input:checked + span { background: var(--ink); color: var(--bg); }
-.seg input:focus-visible + span { outline: 2px solid var(--bar); outline-offset: -2px; }
-.dates label { display: inline-flex; align-items: center; gap: .35rem; font-size: .9rem; color: var(--muted); }
-.dates input { font-size: .9rem; padding: .25rem .45rem; }
+.seg span { display: block; padding: .25rem .7rem; font-size: .95rem; white-space: nowrap; }
+.seg input:checked + span { background: var(--bar); color: #fff; }
+.seg input:focus-visible + span { outline: 2px solid var(--bar-sel); outline-offset: -2px; }
+.dates label { display: inline-flex; flex: 1 1 8rem; align-items: center; gap: .35rem; font-size: .95rem; color: var(--muted); }
+.dates input { flex: 1 1 auto; width: 100%; font-size: .95rem; padding: .25rem .45rem; }
 .chips { display: inline-flex; flex-wrap: wrap; gap: .35rem; }
-.chip { font-size: .8rem; padding: .2rem .65rem; border: 1px solid var(--edge); border-radius: 999px; background: var(--field); cursor: pointer; white-space: nowrap; }
-.chip:hover { border-color: var(--muted); }
-#domain { width: 13rem; max-width: 100%; font-size: .9rem; padding: .25rem .5rem; }
-.help { margin: .9rem 0 0; font-size: .85rem; color: var(--muted); }
-#examples { color: var(--muted); font-size: .9rem; }
+.chip { font-size: .85rem; padding: .2rem .65rem; border: 1px solid var(--edge); border-radius: 999px; background: var(--field); cursor: pointer; white-space: nowrap; }
+.chip:hover { border-color: var(--bar); }
+.sources .ta { position: relative; flex: 1 1 10rem; display: flex; }
+#domain { width: 100%; max-width: 100%; font-size: .95rem; padding: .3rem .5rem; }
+.sources .all { white-space: nowrap; font-size: .95rem; }
+#suggest { position: absolute; top: 100%; left: 0; z-index: 2; width: 100%; min-width: 16rem; max-width: 100vw; max-height: 16rem; overflow: auto; list-style: none; margin: .15rem 0 0; padding: .2rem 0; background: var(--field); border: 1px solid var(--edge); border-radius: .35rem; box-shadow: 0 2px 8px rgba(0, 0, 0, .18); }
+#suggest li { padding: .3rem .6rem; cursor: pointer; }
+#suggest li.on, #suggest li:hover { background: var(--sel); }
+#suggest .n { margin-left: .3em; }
+.chosen { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .35rem; width: 100%; }
+.chosen li { display: inline-flex; align-items: center; gap: .2rem; font-size: .95rem; padding: .1rem .3rem .1rem .6rem; border: 1px solid var(--edge); border-radius: 999px; background: var(--field); }
+.x { border: 0; background: none; padding: 0 .3rem; font-size: 1.1rem; line-height: 1; cursor: pointer; color: var(--muted); }
+.x:hover { color: var(--ink); }
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; margin: .8rem 0 0; }
+.tools .note { margin: 0; }
+.help { margin: .8rem 0 0; font-size: .9rem; color: var(--muted); }
+#examples { color: var(--muted); font-size: .95rem; }
 
-/* Results: a summary line, the optional chart, then the list */
-.summary { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin: 1.4rem 0 .6rem; padding-bottom: .6rem; border-bottom: 1px solid var(--line); }
-.summary p { margin: 0; color: var(--muted); font-size: .9rem; }
-.summary .chip.act { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-#months { margin: .8rem 0 1.2rem; padding: .9rem 1rem 1rem; border: 1px solid var(--line); border-radius: .7rem; }
+/* Results: the status line, two buttons, the optional chart, then the list */
+.status { margin: 1.3rem 0 .6rem; }
+.actions { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 .8rem; }
+.big { display: inline-block; font-size: 1rem; padding: .5rem 1rem; border: 1px solid var(--edge); border-radius: .4rem; background: var(--field); color: inherit; text-decoration: none; cursor: pointer; }
+.big:hover { border-color: var(--bar); }
+#months { margin: .8rem 0 1.2rem; padding: .8rem; border: 1px solid var(--line); border-radius: .6rem; }
 #months h2 { margin: 0 0 .3rem; }
-.note { margin: 0 0 .6rem; font-size: .85rem; color: var(--muted); }
-.chart { display: flex; align-items: stretch; gap: 2px; height: 7rem; border-bottom: 1px solid var(--line); }
+.note { margin: 0 0 .6rem; font-size: .9rem; color: var(--muted); }
+.chart { display: flex; align-items: stretch; gap: 2px; height: 5.5rem; border-bottom: 1px solid var(--line); }
 .chart a { flex: 1 1 0; min-width: 1px; display: flex; align-items: flex-end; text-decoration: none; }
 .chart a i { display: block; width: 100%; background: var(--bar); border-radius: 2px 2px 0 0; }
 .chart a:hover i, .chart a.sel i { background: var(--bar-sel); }
 .chart a.sel { background: var(--band); }
-.years { display: flex; gap: 2px; margin: .15rem 0 .5rem; font: .72rem/1.4 system-ui, sans-serif; color: var(--muted); }
+.years { display: flex; gap: 2px; margin: .15rem 0 .5rem; font-size: .8rem; color: var(--muted); }
 .years span { flex: 1 1 0; min-width: 0; }
 .years a { color: inherit; text-decoration: none; white-space: nowrap; }
 .years a:hover { text-decoration: underline; }
 .measure { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; margin: .5rem 0 .6rem; }
-.measure .note { margin: 0; flex: 1 1 18rem; }
-.tbl th { font: .72rem/1.4 system-ui, sans-serif; letter-spacing: .09em; text-transform: uppercase; text-align: left; padding: 0 1rem .2rem 0; }
-.tbl { font-size: .85rem; color: var(--muted); }
+.tbl th { font-weight: bold; text-align: left; padding: 0 1rem .2rem 0; }
+.tbl { font-size: .9rem; color: var(--muted); }
 .tbl summary { cursor: pointer; }
 .tbl table { border-collapse: collapse; margin-top: .4rem; }
 .tbl td { padding: .05rem 1rem .05rem 0; }
@@ -64,24 +83,33 @@ input:focus-visible, .chip:focus-visible, .go:focus-visible { outline: 2px solid
 ol.hl { list-style: none; margin: 0; padding: 0; }
 ol.hl li { padding: .55rem 0; border-top: 1px solid var(--hair); }
 ol.hl li:first-child { border-top: 0; }
-ol.hl li a.t { color: inherit; text-decoration: none; }
-ol.hl li a.t:hover { text-decoration: underline; }
-.m { display: block; font-size: .8rem; color: var(--muted); margin-top: .1rem; }
-.m a { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--faint); }
+.m { display: block; font-size: .85rem; color: var(--muted); margin-top: .1rem; }
 .n { color: var(--faint); font-size: .85em; }
 mark { background: var(--mark); color: inherit; font-weight: bold; border-radius: 2px; }
-#more { font-size: .9rem; }
+#more { font-size: .95rem; }
 #more a { cursor: pointer; }
-#meta { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--line); font-size: .85rem; color: var(--muted); }
+#meta { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--line); font-size: .9rem; color: var(--muted); }
+
+/* The sources page: a row of letters, a find box, a table */
+.letters { display: flex; flex-wrap: wrap; gap: .2rem .55rem; margin: .8rem 0; }
+.letters a { padding: .1rem .2rem; }
+.letters a.on { font-weight: bold; text-decoration: none; background: var(--sel); border-radius: .25rem; }
+.find { position: relative; margin: .6rem 0; }
+.find label { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+.find input { flex: 1 1 12rem; max-width: 24rem; }
+.find #suggest { top: auto; width: auto; min-width: 16rem; }
+table.src { border-collapse: collapse; margin-top: .6rem; font-size: .95rem; }
+table.src th { text-align: left; padding: .2rem 1rem .3rem 0; border-bottom: 1px solid var(--line); }
+table.src td { padding: .15rem 1rem .15rem 0; white-space: nowrap; vertical-align: top; }
+table.src td.d { white-space: normal; word-break: break-all; }
+table.src td.r, table.src th.r { text-align: right; }
 
 /* Compare mode: a list of term inputs, then the legend, the line chart and its readout */
 .series { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
 .series li { display: flex; align-items: center; gap: .4rem; }
 .series input { flex: 1 1 auto; font-size: 1.05rem; padding: .45rem .7rem; }
 .series .del { padding: .15rem .55rem; font-size: .95rem; line-height: 1.2; }
-.tools { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; margin: .7rem 0 0; }
-.tools .note { margin: 0; }
-#chartbox { margin: .8rem 0 1.2rem; padding: .9rem 1rem 1rem; border: 1px solid var(--line); border-radius: .7rem; }
+#chartbox { margin: .8rem 0 1.2rem; padding: .8rem; border: 1px solid var(--line); border-radius: .6rem; }
 .legend { list-style: none; margin: 0 0 .6rem; padding: 0; font-size: .95rem; }
 .legend li { margin: .1rem 0; }
 .legend .t { color: inherit; }
@@ -91,18 +119,19 @@ mark { background: var(--mark); color: inherit; font-weight: bold; border-radius
 .lines text.yr:hover { text-decoration: underline; }
 #readout { min-height: 1.5em; margin: .5rem 0 .8rem; }
 .rd { white-space: nowrap; margin-left: .7em; }
+#chartbox .tbl { overflow-x: auto; }
 #chartbox .tbl td { white-space: nowrap; }
 
-@media (max-width: 40rem) {
-  body { margin-top: 1rem; }
-  .panel { padding: .8rem; }
-  .opts { flex-direction: column; gap: .7rem; }
-  .group > .lbl { width: 100%; min-width: 0; }
-  .dates label { flex: 1 1 8rem; }
-  .dates input { flex: 1 1 auto; width: 100%; }
-  #domain { flex: 1 1 8rem; width: auto; }
-  .chart { height: 5.5rem; }
-  #chartbox { padding: .8rem; }
-  .seg { flex-wrap: wrap; border-radius: .6rem; }
-  .seg span { padding: .25rem .6rem; }
+@media (min-width: 40rem) {
+  body { margin-top: 1.5rem; padding: 0 1rem; }
+  .panel { padding: 1rem; }
+  .opts { flex-direction: row; flex-wrap: wrap; gap: .7rem 2rem; }
+  .group > .lbl { width: auto; min-width: 3.6rem; }
+  .dates label { flex: 0 1 auto; }
+  .dates input { flex: 0 1 auto; width: auto; }
+  .sources .ta { flex: 0 1 15rem; }
+  .seg { flex-wrap: nowrap; border-radius: 999px; }
+  .seg span { padding: .25rem .8rem; font-size: .9rem; }
+  .chart { height: 7rem; }
+  #months, #chartbox { padding: .9rem 1rem 1rem; }
 }

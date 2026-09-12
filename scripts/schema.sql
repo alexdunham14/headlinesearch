@@ -119,3 +119,29 @@ ENGINE = Memory;
 -- into hyphens.
 CREATE OR REPLACE FUNCTION strip_label AS (d, t) -> if(length(extractGroups(t, '^(.*) (\\||-|\\x{2013}|\\x{2014}) (.*)$')) = 3 AND (d, extractGroups(t, '^(.*) (\\||-|\\x{2013}|\\x{2014}) (.*)$')[3]) IN (SELECT domain, tail FROM labels), extractGroups(t, '^(.*) (\\||-|\\x{2013}|\\x{2014}) (.*)$')[1], t);
 CREATE OR REPLACE FUNCTION story_key AS (d, t) -> strip_label(d, strip_label(d, t));
+
+-- sources: one row per site, with its article count and the timestamps of
+-- its first and last headline, kept current by the sources_mv view below on
+-- every insert into headlines (an insert dropped by the deduplication
+-- window fires no view, so a retried batch is not counted twice). Rows of
+-- one domain merge in the background, so every read goes GROUP BY domain.
+-- It serves /api/sources: the source typeahead on the search page and the
+-- sources page, 87 thousand rows (2026-09-12). Built once on a table that
+-- already has rows, with the ingest timer stopped so no batch lands during
+-- the scan (2026-09-12, 325M rows, see the session doc for the timing):
+--   INSERT INTO sources SELECT domain, count(), min(ts), max(ts) FROM headlines GROUP BY domain
+-- A rebuild of headlines through a second table (scripts/copyflag.py
+-- backfill, EXCHANGE TABLES) fires no view either, but the rows are the
+-- same rows, so the counts stay right. server/rebuild.sql inserts into
+-- headlines and fires it.
+CREATE TABLE IF NOT EXISTS sources (
+  domain String,
+  n      SimpleAggregateFunction(sum, UInt64),
+  first  SimpleAggregateFunction(min, DateTime('UTC')),
+  last   SimpleAggregateFunction(max, DateTime('UTC'))
+)
+ENGINE = AggregatingMergeTree
+ORDER BY domain;
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS sources_mv TO sources AS
+  SELECT domain, count() AS n, min(ts) AS first, max(ts) AS last FROM headlines GROUP BY domain;

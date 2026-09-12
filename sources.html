@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sources - News Headline Search</title>
+<meta name="description" content="Every site GDELT has collected news headlines from since October 2019, with the number of articles from each and the dates it covers.">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:,">
+</head>
+<body>
+<h1><a href="./">News Headline Search</a></h1>
+<h2 class="sub">Sources</h2>
+<p class="lede">Every site GDELT has collected headlines from since October 2019: <span id="n">about 87,000</span> sources. Articles is how many headlines the archive holds from the site; the dates are its first and last. A source opens the search page with everything from that site.</p>
+
+<noscript><p>The list needs JavaScript; it comes from a database behind this page.</p></noscript>
+<p class="letters" id="letters"></p>
+<p class="find"><label>Find <input id="find" type="search" placeholder="part of a site name, e.g. bbc" autocomplete="off" spellcheck="false" maxlength="100"></label></p>
+<p class="note" id="status"></p>
+<div style="overflow-x:auto"><table id="list" class="src"></table></div>
+
+<footer id="meta">Data comes from GDELT and is ingested a few times per day. <a href="./">Search</a>. <a href="compare">Compare terms</a>. <a href="https://github.com/alexdunham14/headlinesearch">Source code</a>.</footer>
+<script src="sources.js"></script>
+</body>
+</html>

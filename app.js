@@ -8,15 +8,22 @@
   const day = d => d.toISOString().slice(0, 10);
   const plus = (s, n) => { const d = new Date(s + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return day(d); };
   const monthEnd = ym => { const [y, m] = ym.split("-").map(Number); return `${ym}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}`; };
+  const fmt = n => n.toLocaleString();
+  // 1.2M, 340k, 800: for the source suggestions.
+  const fmtShort = n => n >= 1e6 ? `${+(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M` : n >= 1e3 ? `${+(n / 1e3).toFixed(n >= 1e4 ? 0 : 1)}k` : String(n);
   // Paging: the Worker collapses identical headlines and returns where the
   // page stopped (a timestamp and how many rows at it were shown); the next
-  // page asks from there. `page` is only a counter for the status line.
+  // page asks from there. `page` is only a counter.
   let page = 1;
   let cursor = null;
   const reset = () => { page = 1; cursor = null; };
   let wantCount = false; // ?count=1 in the URL: show the chart too, so it can be linked to
   // What the database holds, from /api/stats; the chart's span and the date pickers' bounds.
   let loaded = { first: "2019-10-01", last: day(new Date()) };
+  // The chosen sources, shown as chips under the source box; a search may
+  // name several (the Worker takes them comma-separated) or none.
+  const MAX_SOURCES = 10;
+  let sources = [];
   // The month chart for the current term: per "YYYY-MM" a triple [stories,
   // outlets, articles] (see renderChart), filled in window by window; the
   // bars show the measure chosen under the chart.
@@ -25,27 +32,33 @@
   let measure = "stories";
   const setMeasure = m => { measure = MEASURES.includes(m) ? m : "stories"; document.querySelector(`input[name=measure][value=${measure}]`).checked = true; };
 
+  // A search needs a term of two characters or more, or a source with an
+  // empty box (everything from that site); one character is neither.
+  const term = () => $("q").value.trim();
+  const ready = () => term().length >= 2 || (term().length === 0 && sources.length > 0);
+
   function params() {
     const p = new URLSearchParams();
-    p.set("q", $("q").value.trim());
+    if (term()) p.set("q", term());
     p.set("mode", form.mode.value);
     if (form.sort.value === "oldest") p.set("sort", "oldest");
     if ($("from").value) p.set("from", $("from").value);
     if ($("to").value) p.set("to", $("to").value);
-    if ($("domain").value.trim()) p.set("domain", $("domain").value.trim());
+    if (sources.length) p.set("domain", sources.join(","));
     if (cursor) { for (const [k, v] of Object.entries(cursor)) p.set(k, v); p.set("page", page); }
     return p;
   }
 
   function fromUrl() {
     const p = new URLSearchParams(location.search);
-    if (!p.get("q")) return false;
-    $("q").value = p.get("q");
+    sources = parseSources(p.get("domain"));
+    renderChips();
+    if (!p.get("q") && !sources.length) return false;
+    $("q").value = p.get("q") || "";
     form.mode.value = p.get("mode") === "substring" ? "substring" : "word";
     form.sort.value = p.get("sort") === "oldest" ? "oldest" : "newest";
     $("from").value = p.get("from") || "";
     $("to").value = p.get("to") || "";
-    $("domain").value = p.get("domain") || "";
     const at = form.sort.value === "oldest" ? "after" : "before";
     cursor = p.get(at) ? { [at]: p.get(at), skip: p.get("skip") || 0 } : null;
     page = cursor ? Math.max(2, parseInt(p.get("page") || "2", 10) || 2) : 1;
@@ -55,18 +68,19 @@
     return true;
   }
 
-  // The chart belongs to a term, a mode and a source; dates and order only narrow the list.
-  const chartKey = p => [p.get("q"), p.get("mode"), p.get("domain") || ""].join("\n");
+  // The chart belongs to a term, a mode and a set of sources; dates and order only narrow the list.
+  const chartKey = p => [p.get("q") || "", p.get("mode"), p.get("domain") || ""].join("\n");
+  const title = p => `${p.get("q") || sources.join(", ")} - News Headline Search`;
 
   async function search(push) {
     const p = params();
-    if (p.get("q").length < 2) return;
+    if (!ready()) return;
     if (push) history.pushState(null, "", "?" + p);
-    document.title = `${p.get("q")} - Headline Search`;
+    document.title = title(p);
     $("examples").hidden = true;
     $("out").hidden = false;
     $("status").textContent = "searching…";
-    $("count").hidden = true;
+    $("actions").hidden = true;
     $("results").innerHTML = "";
     $("more").innerHTML = "";
     if (chart && chart.key !== chartKey(p)) { chart = null; $("months").hidden = true; $("list-h").hidden = true; }
@@ -109,14 +123,16 @@
   // alternative: "congo OR drc" marks either), the exact run in substring
   // mode. Matching runs on the folded title, and each folded character
   // remembers where in the original it came from, so the mark lands on the
-  // original text ("Niño", not "nino").
+  // original text ("Niño", not "nino"). No term (a source on its own) marks nothing.
   function highlighter(p) {
     const re = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const q = p.get("q");
+    const q = p.get("q") || "";
+    if (!q) return esc;
     const words = [...new Set(q.split(/(?<=^|\s)OR(?=\s|$)/).map(fold).join(" ").split(/[^\p{L}\p{N}]+/u).filter(Boolean))];
     const pat = p.get("mode") === "substring"
       ? re(fold(q))
       : words.map(w => `(?<![\\p{L}\\p{N}])${re(w)}(?![\\p{L}\\p{N}])`).join("|");
+    if (!pat) return esc;
     let rx;
     try { rx = new RegExp(pat, "giu"); } catch (e) { return esc; }
     return title => {
@@ -139,40 +155,61 @@
     };
   }
 
+  // The other sites that carried a headline (its copies grouped by site,
+  // the first site left out), each with the first URL seen there and how
+  // many copies that site had.
+  function otherSites(g) {
+    const m = new Map();
+    for (const [d, u] of g.copies || []) {
+      if (d === g.domain) continue;
+      const o = m.get(d);
+      if (o) o.k++; else m.set(d, { u, k: 1 });
+    }
+    return [...m];
+  }
+
   function render(r, p) {
     const rows = r.rows; // one per distinct headline, with n copies on `sites` sites
     const oldest = p.get("sort") === "oldest";
     const hl = highlighter(p);
-    const range = p.get("from") || p.get("to") ? ` between ${fmtDay(p.get("from") || loaded.first)} and ${fmtDay(p.get("to") || loaded.last)}` : "";
     if (!rows.length) {
-      $("status").textContent = page > 1 ? "No more results." : `Nothing found${range}.`;
+      $("status").textContent = page > 1 ? "No more results." : "Nothing found.";
     } else {
-      const a = fmtDay(rows[0].ts), b = fmtDay(rows[rows.length - 1].ts);
-      const span = a === b ? `on ${a}` : `${a} ${oldest ? "forward" : "back"} to ${b}`;
-      const end = oldest ? "oldest" : "newest";
-      const n = rows.length, used = r.used.toLocaleString();
-      // "Newest 100 headlines from 316 matching articles": the rows behind
-      // the page, when copies collapsed. A page that stayed short even after
-      // the Worker looked further says how far it looked.
-      const what = r.next && n === 100 ? `${oldest ? "Oldest" : "Newest"} 100 headlines${r.used > n ? ` from ${used} matching articles` : ""}`
-        : r.next ? `${n} headlines from the ${end} ${used} matching articles`
-        : `${n} headline${n === 1 ? "" : "s"}${r.used > n ? ` from ${used} matching articles` : ""}`;
-      $("status").textContent = `${what}${page > 1 ? ` (page ${page})` : ""}${p.get("domain") ? ` on ${p.get("domain")}` : ""}, ${span}, ${r.elapsed.toFixed(1)}s.`;
+      // "Displaying the newest 100 headlines from 316 matching articles": the
+      // rows behind the page, once copies collapsed.
+      const n = rows.length;
+      $("status").textContent = `Displaying the ${oldest ? "oldest" : "newest"} ${fmt(n)} headline${n === 1 ? "" : "s"} from ${fmt(r.used)} matching article${r.used === 1 ? "" : "s"}.`;
     }
-    $("count").hidden = !(rows.length || chart);
-    $("count").classList.toggle("act", !chart);
+    $("actions").hidden = !(rows.length || chart);
+    $("count").hidden = !!chart;
+    $("compare").hidden = p.get("mode") === "substring";
+    $("compare").href = compareUrl(p);
     $("list-h").hidden = !chart;
     $("list-h").textContent = `Headlines, ${oldest ? "oldest" : "newest"} first`;
-    $("results").innerHTML = rows.map(g => `<li>
-      <a class="t" href="${esc(g.url)}" rel="nofollow noopener">${hl(g.title)}</a>${g.n > 1 ? ` <span class="n" title="${g.n} copies of this headline${g.sites > 1 ? ` on ${g.sites} sites` : ""}">×${g.n}</span>` : ""}
-      <span class="m"><span title="${esc(g.ts)} UTC">${fmtDay(g.ts)}</span> · <a href="#" data-domain="${esc(g.domain)}" title="Only ${esc(g.domain)}">${esc(g.domain)}</a>${g.sites > 1 ? ` +${g.sites - 1} more` : ""}</span>
-    </li>`).join("");
+    $("results").innerHTML = rows.map(g => {
+      const others = otherSites(g);
+      const more = others.length ? ` <a href="#" class="ex" aria-expanded="false">+${others.length} more</a><span class="copies" hidden>: ${others.map(([d, o]) => `<a href="${esc(o.u)}" rel="nofollow noopener">${esc(d)}</a>${o.k > 1 ? `<span class="n">&times;${o.k}</span>` : ""}`).join(", ")}</span>` : "";
+      return `<li>
+      ${hl(g.title)}${g.n > 1 ? ` <span class="n" title="${g.n} copies of this headline${g.sites > 1 ? ` on ${g.sites} sites` : ""}">×${g.n}</span>` : ""}
+      <span class="m"><span title="${esc(g.ts)} UTC">${fmtDay(g.ts)}</span> · <a href="${esc(g.url)}" rel="nofollow noopener">${esc(g.domain)}</a>${more}</span>
+    </li>`;
+    }).join("");
     if (r.next) {
       $("more").innerHTML = `<a id="next">${oldest ? "newer" : "older"} results →</a>`;
       $("next").onclick = () => { cursor = r.next; page++; search(true); $("out").scrollIntoView(); };
     }
     if (chart) renderChart(p);
     else if (wantCount && rows.length) { wantCount = false; count(p); }
+  }
+
+  // The compare page with this search's term, sources, measure and dates.
+  function compareUrl(p) {
+    const s = [p.get("q") || "", sources.length ? `site:${sources.join(",")}` : ""].join(" ").trim();
+    const cp = new URLSearchParams({ s });
+    if (measure !== "stories") cp.set("measure", measure);
+    if (p.get("from")) cp.set("from", p.get("from"));
+    if (p.get("to")) cp.set("to", p.get("to"));
+    return "/compare?" + cp;
   }
 
   // ------------------------------------------------------------- the month chart
@@ -199,7 +236,7 @@
     chart = { key, counts: new Map(), partial: new Set(), running: true, failed: 0, limited: 0, wait: 0 };
     $("months").hidden = false;
     $("list-h").hidden = false;
-    $("count").classList.remove("act");
+    $("count").hidden = true;
     $("months-note").textContent = "counting…";
     await statsReady; // the chart spans what is loaded, so wait to know that
     if (chart.key !== key) return;
@@ -210,7 +247,8 @@
     const fetchWindow = async w => {
       chart.now = w;
       renderChart(p);
-      const q = new URLSearchParams({ q: p.get("q"), mode: p.get("mode"), from: w[0] + "-01", to: monthEnd(w[w.length - 1]) });
+      const q = new URLSearchParams({ mode: p.get("mode"), from: w[0] + "-01", to: monthEnd(w[w.length - 1]) });
+      if (p.get("q")) q.set("q", p.get("q"));
       if (p.get("domain")) q.set("domain", p.get("domain"));
       let r;
       try { r = await fetch("/api/count?" + q).then(res => res.json()); } catch (e) { r = { error: "count failed" }; }
@@ -248,15 +286,10 @@
   // Three counts a month, from the copy flag the database keeps per row:
   // stories (a headline's first appearance anywhere in a week), outlets (its
   // first appearance on each site) and articles (every page). The bars show
-  // one; the note, the bar titles and the table give all three. With a
-  // source, stories are that site's own first sightings and outlets would
-  // be the same number, so it is not offered.
+  // one; the note, the bar titles and the table give all three.
   function renderChart(p) {
     const months = monthList();
     const c = chart.counts;
-    const single = !!p.get("domain");
-    if (single && measure === "outlets") setMeasure("stories");
-    $("measure-outlets").hidden = single;
     const k = MEASURES.indexOf(measure);
     const from = p.get("from") || loaded.first, to = p.get("to") || loaded.last;
     const narrowed = p.get("from") || p.get("to");
@@ -270,46 +303,48 @@
       if (v[2] && !first) first = m;
       if (v[2]) last = m;
     }
-    const fmt = n => n.toLocaleString();
-    const triple = single ? `${fmt(total[0])} stories in ${fmt(total[2])} articles` : `${fmt(total[0])} stories, ${fmt(total[1])} outlets, ${fmt(total[2])} articles`;
+    const triple = v => `${fmt(v[0])} stories, ${fmt(v[1])} outlets, ${fmt(v[2])} articles`;
     let note;
     if (chart.running && chart.wait) note = `${fmt(total[k])} ${measure} so far; too many requests from here in a minute, so the rest wait ${chart.wait} s…`;
     else if (chart.running) note = `${fmt(total[k])} ${measure} so far; counting ${chart.now ? `${fmtMonth(chart.now[0])} to ${fmtMonth(chart.now[chart.now.length - 1])}` : ""}…`;
     else if (!total[2]) note = chart.failed ? "The count could not be completed." : "No matching articles in any month.";
-    else note = `${triple}, ${fmtMonth(first)} to ${fmtMonth(last)}${peak ? `, most ${measure} in ${fmtMonth(peak)} (${fmt(max)})` : ""}.`;
+    else note = `${triple(total)}, ${fmtMonth(first)} to ${fmtMonth(last)}${peak ? `, most ${measure} in ${fmtMonth(peak)} (${fmt(max)})` : ""}.`;
     if (!chart.running && chart.partial.size) note += " Months marked ~ hit the time limit, so their counts are low.";
     if (!chart.running && chart.failed) note += ` ${chart.failed} window${chart.failed === 1 ? "" : "s"} could not be counted${chart.limited ? " (too many searches from here in a minute; search again in a minute to fill them in)" : ""}.`;
     if (!chart.running && total[2]) note += " Click a month or a year to narrow the search to it.";
     $("months-note").textContent = note;
-    const cp = new URLSearchParams({ s: p.get("q") + (single ? ` site:${p.get("domain")}` : "") });
-    if (measure !== "stories") cp.set("measure", measure);
-    $("compare").href = "/compare?" + cp;
-    $("compare-p").hidden = p.get("mode") === "substring";
-    const each = v => single ? `${fmt(v[0])} stories, ${fmt(v[2])} articles` : `${fmt(v[0])} stories, ${fmt(v[1])} outlets, ${fmt(v[2])} articles`;
+    $("compare").href = compareUrl(p);
     $("chart").innerHTML = months.map(m => {
       const v = c.get(m);
       const sel = narrowed && from <= m + "-01" && to >= monthEnd(m);
-      const label = v == null ? "not counted yet" : `${each(v)}${chart.partial.has(m) ? " (partial)" : ""}`;
+      const label = v == null ? "not counted yet" : `${triple(v)}${chart.partial.has(m) ? " (partial)" : ""}`;
       return `<a href="#" class="${sel ? "sel" : ""}" data-month="${m}" title="${fmtMonth(m)}: ${label}"><i style="height:${v && v[k] ? Math.max(1.5, v[k] / max * 100).toFixed(1) : 0}%"></i></a>`;
     }).join("");
     $("years").innerHTML = months.map(m => `<span>${m.endsWith("-01") ? `<a href="#" data-year="${m.slice(0, 4)}">${m.slice(0, 4)}</a>` : ""}</span>`).join("");
-    const cols = single ? [0, 2] : [0, 1, 2];
-    $("months-table").innerHTML = `<tr><th></th>${cols.map(i => `<th>${MEASURES[i]}</th>`).join("")}</tr>` + months.filter(m => c.get(m)?.[2]).map(m =>
-      `<tr><td><a href="#" data-month="${m}">${fmtMonth(m)}</a></td>${cols.map(i => `<td>${chart.partial.has(m) ? "~" : ""}${fmt(c.get(m)[i])}</td>`).join("")}</tr>`).join("");
+    $("months-table").innerHTML = `<tr><th></th>${MEASURES.map(x => `<th>${x}</th>`).join("")}</tr>` + months.filter(m => c.get(m)?.[2]).map(m =>
+      `<tr><td><a href="#" data-month="${m}">${fmtMonth(m)}</a></td>${[0, 1, 2].map(i => `<td>${chart.partial.has(m) ? "~" : ""}${fmt(c.get(m)[i])}</td>`).join("")}</tr>`).join("");
   }
 
-  // Facets: a source in the list, a month or a year in the chart, each narrows the search.
+  // A month or a year in the chart narrows the search to it; "+3 more" on a
+  // headline opens the other sites that carried it.
   document.addEventListener("click", ev => {
-    const a = ev.target.closest("a[data-domain], a[data-month], a[data-year]");
+    const ex = ev.target.closest("a.ex");
+    if (ex) {
+      ev.preventDefault();
+      const open = ex.getAttribute("aria-expanded") !== "true";
+      ex.setAttribute("aria-expanded", String(open));
+      ex.nextElementSibling.hidden = !open;
+      ex.textContent = open ? "fewer" : `+${ex.nextElementSibling.querySelectorAll("a").length} more`;
+      return;
+    }
+    const a = ev.target.closest("a[data-month], a[data-year]");
     if (!a) return;
     ev.preventDefault();
-    if (a.dataset.domain) { $("domain").value = a.dataset.domain; }
-    else if (a.dataset.month) { $("from").value = a.dataset.month + "-01"; $("to").value = monthEnd(a.dataset.month); }
+    if (a.dataset.month) { $("from").value = a.dataset.month + "-01"; $("to").value = monthEnd(a.dataset.month); }
     else { $("from").value = a.dataset.year + "-01-01"; $("to").value = a.dataset.year + "-12-31"; }
     linkDates();
     reset();
     search(true);
-    if (a.dataset.domain) $("out").scrollIntoView();
   });
   const chartUrl = p => { p.set("count", "1"); if (measure !== "stories") p.set("measure", measure); else p.delete("measure"); history.replaceState(null, "", "?" + p); };
   $("count").onclick = () => {
@@ -323,14 +358,88 @@
     if (chart) { chartUrl(p); renderChart(p); }
   });
 
-  // What is loaded: the intro sentence, the chart's span and the date pickers' bounds.
+  // ------------------------------------------------------------------ sources
+  // The source box suggests sites as you type (from /api/sources: the sites
+  // whose name contains the text, those starting with it first, then the
+  // biggest); a chosen site becomes a chip under the box, with an × to
+  // remove it. Enter on a typed name that is not in the list adds it as
+  // typed, cleaned to a bare site name.
+  function parseSources(s) {
+    return [...new Set((s || "").toLowerCase().split(",").map(cleanSource).filter(Boolean))].slice(0, MAX_SOURCES);
+  }
+  function cleanSource(s) {
+    return s.trim().toLowerCase().replace(/^[a-z]+:\/\//, "").replace(/^www\./, "").replace(/[/?#].*$/, "").replace(/[^a-z0-9.-]/g, "");
+  }
+  function renderChips() {
+    $("chosen").innerHTML = sources.map(d => `<li>${esc(d)}<button type="button" class="x" data-remove="${esc(d)}" aria-label="Remove ${esc(d)}" title="Remove">&times;</button></li>`).join("");
+    $("chosen").hidden = !sources.length;
+  }
+  function addSource(d) {
+    d = cleanSource(d);
+    if (!d || sources.includes(d) || sources.length >= MAX_SOURCES) return false;
+    sources.push(d);
+    renderChips();
+    return true;
+  }
+  $("chosen").addEventListener("click", ev => {
+    const b = ev.target.closest("button[data-remove]");
+    if (!b) return;
+    sources = sources.filter(d => d !== b.dataset.remove);
+    renderChips();
+    if (ready()) go(); else home(true);
+  });
+
+  const box = $("domain"), list = $("suggest");
+  const found = new Map(); // text typed -> the sites suggested, so retyping costs nothing
+  let sugg = [], active = -1, seq = 0, timer;
+  const closeList = () => { list.hidden = true; list.innerHTML = ""; sugg = []; active = -1; box.setAttribute("aria-expanded", "false"); };
+  async function suggest() {
+    const text = cleanSource(box.value);
+    if (!text) { closeList(); return; }
+    const my = ++seq;
+    let r = found.get(text);
+    if (!r) {
+      try { r = await fetch("/api/sources?q=" + encodeURIComponent(text)).then(res => res.json()); } catch (e) { r = {}; }
+      if (r.sources) found.set(text, r);
+    }
+    if (my !== seq || cleanSource(box.value) !== text) return;
+    sugg = (r.sources || []).filter(s => !sources.includes(s[0]));
+    if (!sugg.length) { closeList(); return; }
+    active = -1;
+    list.innerHTML = sugg.map((s, i) => `<li role="option" id="sug-${i}" data-i="${i}">${esc(s[0])} <span class="n">${fmtShort(s[1])} articles</span></li>`).join("");
+    list.hidden = false;
+    box.setAttribute("aria-expanded", "true");
+  }
+  const mark = () => { [...list.children].forEach((li, i) => li.classList.toggle("on", i === active)); box.setAttribute("aria-activedescendant", active >= 0 ? `sug-${active}` : ""); };
+  const choose = d => { if (addSource(d)) { box.value = ""; closeList(); go(); } else { box.value = ""; closeList(); } };
+  box.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(suggest, 120); });
+  box.addEventListener("focus", () => { if (box.value) suggest(); });
+  box.addEventListener("blur", () => setTimeout(closeList, 150));
+  box.addEventListener("keydown", ev => {
+    if (ev.key === "ArrowDown" && sugg.length) { ev.preventDefault(); active = Math.min(active + 1, sugg.length - 1); mark(); }
+    else if (ev.key === "ArrowUp" && sugg.length) { ev.preventDefault(); active = Math.max(active - 1, -1); mark(); }
+    else if (ev.key === "Escape") { closeList(); }
+    else if (ev.key === "Enter") {
+      if (active >= 0) { ev.preventDefault(); choose(sugg[active][0]); }
+      else if (box.value.trim()) { ev.preventDefault(); choose(box.value); }
+      // an empty box: Enter submits the form, as in any other field
+    }
+  });
+  list.addEventListener("pointerdown", ev => {
+    const li = ev.target.closest("li[data-i]");
+    if (!li) return;
+    ev.preventDefault(); // keep the focus, so the blur does not close the list first
+    choose(sugg[li.dataset.i][0]);
+  });
+
+  // What is loaded: the number in the lede, the line under "More
+  // information", the chart's span and the date pickers' bounds.
   const statsReady = fetch("/api/stats").then(res => res.json()).then(s => {
     if (s.error) throw new Error(s.error);
     loaded = { first: s.first.slice(0, 10), last: s.last.slice(0, 10) };
-    const n = s.rows >= 1e9 ? `${(s.rows / 1e9).toFixed(1)} billion` : s.rows >= 1e6 ? `${(s.rows / 1e6).toFixed(1)} million` : s.rows.toLocaleString();
-    $("stats").textContent = loaded.first > "2019-10-02"
-      ? `Loaded so far: ${n} headlines, ${fmtDay(loaded.first)} to ${fmtDay(loaded.last)}; earlier years are still being loaded.`
-      : `${n} headlines, ${fmtDay(loaded.first)} to ${fmtDay(loaded.last)}.`;
+    $("n").textContent = s.rows >= 1e6 ? `${Math.round(s.rows / 1e6)} million` : fmt(s.rows);
+    $("stats").textContent = `${fmt(s.rows)} headlines from ${s.sources ? `${fmt(s.sources)} sources, ` : ""}${fmtDay(loaded.first)} to ${fmtDay(loaded.last)}.`
+      + (loaded.first > "2019-10-02" ? " Earlier years are still being loaded." : "");
     $("from").min = $("to").min = loaded.first; $("from").max = $("to").max = loaded.last; linkDates();
   }).catch(() => { $("stats").textContent = "Could not reach the database just now."; });
 
@@ -341,11 +450,10 @@
     if (f.value && t.value && t.value < f.value) { if (changed === "from") t.value = f.value; else f.value = t.value; }
     t.min = f.value || f.min; f.max = t.value || t.max || "";
   }
-  const go = () => { linkDates(); if ($("q").value.trim().length >= 2) { reset(); search(true); } };
+  const go = () => { linkDates(); if (ready()) { reset(); search(true); } };
   $("from").addEventListener("change", () => { linkDates("from"); go(); });
   $("to").addEventListener("change", () => { linkDates("to"); go(); });
   $("clear-dates").onclick = () => { $("from").value = ""; $("to").value = ""; go(); };
-  $("clear-domain").onclick = () => { $("domain").value = ""; go(); };
   const shift = dir => {
     const f = $("from").value || loaded.first, t = $("to").value || loaded.last;
     const len = Math.round((new Date(t) - new Date(f)) / 864e5) + 1;
@@ -353,11 +461,32 @@
   };
   $("earlier").onclick = () => shift(-1);
   $("later").onclick = () => shift(1);
-
-  form.onsubmit = e => { e.preventDefault(); reset(); search(true); };
-  window.onpopstate = () => {
-    if (fromUrl()) search(false);
-    else { $("examples").hidden = false; $("out").hidden = true; chart = null; $("months").hidden = true; document.title = "Headline Search"; }
+  // Every filter back to its default; the term stays. With a term the
+  // search runs again; without one there is nothing left to search.
+  $("clear-all").onclick = () => {
+    form.mode.value = "word"; form.sort.value = "newest";
+    $("from").value = ""; $("to").value = ""; linkDates();
+    sources = []; renderChips(); box.value = ""; closeList();
+    if (ready()) go(); else home(true);
   };
+  form.addEventListener("change", ev => { if (ev.target.name === "mode" || ev.target.name === "sort") go(); });
+
+  // The front page: no results, the examples back.
+  function home(push) {
+    if (push) history.pushState(null, "", location.pathname);
+    $("examples").hidden = false; $("out").hidden = true; chart = null; $("months").hidden = true;
+    document.title = "News Headline Search";
+  }
+  form.onsubmit = e => {
+    e.preventDefault();
+    if (!ready()) {
+      $("q").setCustomValidity(term().length === 1 ? "Type at least two characters." : "Type a word, or choose a source.");
+      $("q").reportValidity();
+      return;
+    }
+    reset(); search(true);
+  };
+  $("q").addEventListener("input", () => $("q").setCustomValidity(""));
+  window.onpopstate = () => { if (fromUrl()) search(false); else home(false); };
   if (fromUrl()) search(false);
 })();

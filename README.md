@@ -319,20 +319,20 @@ user's password), set with `wrangler secret put`. `CH_URL` must use a
 hostname, not a bare IP address: a Worker's `fetch()` to an IP literal is
 refused at Cloudflare's edge (error 1003) and never reaches the server. Any
 port works.
-`db.newsheadlinesearch.com` is meant to be a Cloudflare Tunnel: `cloudflared`
-on the database box holds an outbound connection to Cloudflare, the record
-is a CNAME to the tunnel, the Worker fetches `https://db.newsheadlinesearch.com`,
-and the box has no open port but ssh. `server/tunnel.sh` creates the tunnel
-and the record through the API (it needs a token with Tunnel edit and DNS
-edit) and prints the tunnel token that `server/setup.sh` installs. Until the
-tunnel is in place the record is a proxied A record pointing at the box, the
-Worker fetches `http://db.newsheadlinesearch.com:8123`, and the box's
-firewall admits port 8123 from Cloudflare's published ranges: the deployed
-Worker reaches it because a subrequest to a hostname in the Worker's own
-zone goes straight to the origin, while a `wrangler versions upload` preview
-on workers.dev is not in that zone, goes through the proxy, which does not
-serve port 8123, and gets "database error" for everything (2026-09-12). So
-the API can only be tried in production, or locally against `scripts/dev-db`.
+`db.newsheadlinesearch.com` is a Cloudflare Tunnel (since 2026-09-12):
+`cloudflared` on the database box holds an outbound connection to
+Cloudflare, the record is a CNAME to the tunnel, the Worker fetches
+`https://db.newsheadlinesearch.com`, and the box has no open port but ssh.
+`server/tunnel.sh` creates the tunnel and the record through the API (it
+needs a token with Tunnel edit, zone read and DNS edit) and prints the
+tunnel token that `server/setup.sh` installs. A `wrangler versions upload`
+preview on workers.dev reaches the database the same way, so a version can
+be tried before it is deployed. (Until the tunnel, the record was a proxied
+A record pointing at the box and the Worker fetched port 8123 directly,
+which a preview could not; that is the mode `setup.sh` falls back to
+without a tunnel token.) Anything on the internet can reach the tunnel's
+hostname; the `search` user's password, its read-only grants and its
+quota are the gate, as they were with the open port.
 
 The database runs on an AWS Lightsail instance (`headlinesearch-db`, 2 vCPU,
 4 GB, 80 GB, Debian 12, us-east-1); `ssh headlinesearch-db` reaches it, as

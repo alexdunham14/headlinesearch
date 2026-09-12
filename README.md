@@ -327,9 +327,7 @@ So the API can only be tried in production, or locally against
 The database runs on an AWS Lightsail instance (`headlinesearch-db`, 2 vCPU,
 4 GB, 80 GB, Debian 12, us-east-1) in Alex's AWS account; `ssh headlinesearch-db`
 reaches it from Alex's machine, and the root repo's session docs hold the
-particulars. `CH_URL` points at it by hostname (see above). Until
-`db.newsheadlinesearch.com` exists, that hostname is a wildcard-DNS name for
-the box's static IP.
+particulars. `CH_URL` points at it as `db.newsheadlinesearch.com` (see above).
 
 ## Setting up the server
 

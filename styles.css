@@ -15,7 +15,8 @@ h2.sub { margin: 0 0 .5rem; }
 .lede { margin: 0 0 .6rem; }
 .info { margin: 0 0 1rem; }
 .info summary { cursor: pointer; }
-.info p { margin: .4rem 0 0 1rem; }
+.info p, .info ul { margin: .4rem 0 0 1rem; }
+.info ul { padding-left: 1.2rem; }
 input, button { font: inherit; color: inherit; }
 [hidden] { display: none !important; } /* the attribute wins over any display rule below */
 input[type=search], input[type=text], input[type=date] { appearance: none; -webkit-appearance: none; background: var(--field); border: 1px solid var(--edge); border-radius: .35rem; padding: .35rem .6rem; min-width: 0; }

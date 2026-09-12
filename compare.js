@@ -276,7 +276,7 @@
     }).join("");
 
     $("chart-link").href = toUrl(s.series, !chartOnly);
-    $("chart-link").textContent = chartOnly ? "See the full compare page" : "Chart on its own";
+    $("chart-link").textContent = chartOnly ? "See the full compare page" : "Linkable chart";
 
     // The chart, then the hover layer wired to it.
     const box = $("chart");

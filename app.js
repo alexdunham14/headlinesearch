@@ -342,7 +342,7 @@
     $("compare").href = compareUrl(p);
     $("months-h").textContent = chartOnly ? describe(p) : "Matches by month";
     $("chart-link").href = pageUrl(p, !chartOnly);
-    $("chart-link").textContent = chartOnly ? "See the headlines and the full search" : "Chart on its own";
+    $("chart-link").textContent = chartOnly ? "See the headlines and the full search" : "Linkable chart";
     $("chart").innerHTML = months.map(m => {
       const v = c.get(m);
       const sel = narrowed && from <= m + "-01" && to >= monthEnd(m);

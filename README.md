@@ -30,7 +30,7 @@ turned up in the news, or what a particular outlet headlined that week.
   linked to, and with `view=chart` the page opens on the chart alone, first
   under the title, with a link to the full search; a month clicked there
   opens the full search narrowed to it. The compare page has the same
-  view. Beside every chart, "Chart on its own" is that link.
+  view. Beside every chart, "Linkable chart" is that link.
 - Search covers the whole corpus (English-language GKG files, 2019-10-01 to
   yesterday). Word search matches whole words, ignoring case and accents
   ("el nino" finds "El Niño" and "El Nino"; the corpus spells it both ways

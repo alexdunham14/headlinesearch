@@ -292,11 +292,13 @@ def main():
     if use_r2:
         R2()  # fail early if the environment is incomplete
 
+    # Comment lines go first, then the split on ";" (a semicolon inside a
+    # comment would otherwise cut a statement in two).
     with open(os.path.join(os.path.dirname(__file__), "schema.sql")) as fh:
-        for statement in fh.read().split(";"):
-            statement = "\n".join(l for l in statement.splitlines() if not l.lstrip().startswith("--"))
-            if statement.strip():
-                ch(statement)
+        sql = "\n".join(l for l in fh.read().splitlines() if not l.lstrip().startswith("--"))
+    for statement in sql.split(";"):
+        if statement.strip():
+            ch(statement)
 
     if args.from_dir:
         available = {m.group(1) for n in os.listdir(args.from_dir) for m in [re.match(r"(\d{14})\.gkg\.csv\.zip$", n)] if m}

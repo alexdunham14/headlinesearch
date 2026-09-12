@@ -5,7 +5,7 @@
 // Everything else is a static asset. Nothing a visitor sends ever reaches
 // ClickHouse as SQL.
 //
-// Secrets: CH_URL (e.g. http://db.example.com:8123; a hostname, not a bare
+// Secrets: CH_URL (e.g. https://db.newsheadlinesearch.com, a Cloudflare Tunnel to the box; a hostname, not a bare
 // IP, which Cloudflare refuses with error 1003), CH_PASSWORD (the `search`
 // user, who reads `headlines`, `labels` and `sources`). Binding:
 // SEARCH_LIMIT (rate limit per IP, see wrangler.jsonc: 120 a minute, where a

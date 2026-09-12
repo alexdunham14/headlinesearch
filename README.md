@@ -316,18 +316,24 @@ user's password), set with `wrangler secret put`. `CH_URL` must use a
 hostname, not a bare IP address: a Worker's `fetch()` to an IP literal is
 refused at Cloudflare's edge (error 1003) and never reaches the server. Any
 port works.
-`db.newsheadlinesearch.com` is a proxied record, which the deployed Worker
-reaches all the same because a subrequest to a hostname in the Worker's
-own zone goes straight to the origin; a `wrangler versions upload` preview
+`db.newsheadlinesearch.com` is meant to be a Cloudflare Tunnel: `cloudflared`
+on the database box holds an outbound connection to Cloudflare, the record
+is a CNAME to the tunnel, the Worker fetches `https://db.newsheadlinesearch.com`,
+and the box has no open port but ssh. `server/tunnel.sh` creates the tunnel
+and the record through the API (it needs a token with Tunnel edit and DNS
+edit) and prints the tunnel token that `server/setup.sh` installs. Until the
+tunnel is in place the record is a proxied A record pointing at the box, the
+Worker fetches `http://db.newsheadlinesearch.com:8123`, and the box's
+firewall admits port 8123 from Cloudflare's published ranges: the deployed
+Worker reaches it because a subrequest to a hostname in the Worker's own
+zone goes straight to the origin, while a `wrangler versions upload` preview
 on workers.dev is not in that zone, goes through the proxy, which does not
-serve port 8123, and gets "database error" for everything (2026-09-12).
-So the API can only be tried in production, or locally against
-`scripts/dev-db`.
+serve port 8123, and gets "database error" for everything (2026-09-12). So
+the API can only be tried in production, or locally against `scripts/dev-db`.
 
 The database runs on an AWS Lightsail instance (`headlinesearch-db`, 2 vCPU,
-4 GB, 80 GB, Debian 12, us-east-1) in Alex's AWS account; `ssh headlinesearch-db`
-reaches it from Alex's machine, and the root repo's session docs hold the
-particulars. `CH_URL` points at it as `db.newsheadlinesearch.com` (see above).
+4 GB, 80 GB, Debian 12, us-east-1); `ssh headlinesearch-db` reaches it, as
+`admin` with a key, and the cloud firewall admits ssh from one address.
 
 ## Setting up the server
 
@@ -336,13 +342,16 @@ On a fresh Debian or Ubuntu box, as root:
 ```
 git clone https://github.com/alexdunham14/headlinesearch /opt/headlinesearch
 cd /opt/headlinesearch
-CH_SEARCH_PASSWORD=... CH_INGEST_PASSWORD=... R2_ACCOUNT_ID=... R2_ACCESS_KEY_ID=... R2_SECRET_ACCESS_KEY=... ./server/setup.sh
+CH_SEARCH_PASSWORD=... CH_INGEST_PASSWORD=... R2_ACCOUNT_ID=... R2_ACCESS_KEY_ID=... R2_SECRET_ACCESS_KEY=... CF_TUNNEL_TOKEN=... ./server/setup.sh
 ```
 
-That installs ClickHouse, the config in `server/`, a firewall that admits
-port 8123 from Cloudflare's published IP ranges only, and a systemd timer
-that runs the ingest every six hours. To start from the R2 archive rather
-than re-downloading GDELT, run `server/rebuild.sql` (with the account id and
-keys filled in) through `clickhouse-client` first. Traffic between Cloudflare
-and the server is plain HTTP with a password; once a domain is on Cloudflare,
-a Tunnel can replace the open port.
+That installs ClickHouse, the config in `server/`, sshd without root login,
+a firewall that admits ssh only, and a systemd timer that runs the ingest
+every six hours. With `CF_TUNNEL_TOKEN` (from `server/tunnel.sh`, run once
+with an API token) it also installs `cloudflared` as a service, and
+ClickHouse listens on localhost only; without it, ClickHouse listens on
+every interface and the firewall admits port 8123 from Cloudflare's
+published IP ranges, with the Worker's traffic then plain HTTP with a
+password, from Cloudflare's edge to the box. To start from the R2 archive
+rather than re-downloading GDELT, run `server/rebuild.sql` (with the account
+id and keys filled in) through `clickhouse-client` first.

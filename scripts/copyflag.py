@@ -45,6 +45,13 @@ below is that query. This script builds the labels and, once, the flag:
                          redefined with the column first and each partition
                          gets it back as it is rebuilt). Resumable: a
                          partition with any flagged row is skipped.
+  copyflag.py optimize   merge each partition to one part, one partition at
+                         a time with a disk guard (the backfill leaves six
+                         or seven parts a partition, and letting the
+                         background merge them two at a time filled the
+                         disk on 2026-09-12: a merged part is written
+                         before its sources go, and the sources of the
+                         biggest months are 2.7 GB each)
   copyflag.py status     which partitions carry the flag
 
 Environment: CH_URL, CH_USER, CH_PASSWORD, as for ingest.py. Stdlib only.
@@ -238,6 +245,31 @@ def backfill():
     log(f"backfill done: {done} partitions in {(time.time() - started) / 60:.0f} min")
 
 
+def optimize():
+    """Background merge selection is blocked for the run
+    (max_bytes_to_merge_at_max_space_in_pool = 1; OPTIMIZE FINAL ignores it,
+    tested), replaced parts are kept for a minute rather than eight, and each
+    partition waits for MIN_FREE_GB before it starts."""
+    ch("ALTER TABLE headlines MODIFY SETTING max_bytes_to_merge_at_max_space_in_pool = 1, old_parts_lifetime = 60")
+    ch("SYSTEM START MERGES headlines")
+    parts = partitions()
+    started = time.time()
+    try:
+        for i, p in enumerate(parts):
+            n = int(ch(f"SELECT count() FROM system.parts WHERE database = currentDatabase() AND table = 'headlines' AND active AND partition = '{p}'").strip())
+            if n <= 1:
+                continue
+            while free_gb() < MIN_FREE_GB:
+                log(f"{free_gb():.1f} GB free; waiting")
+                time.sleep(30)
+            t = time.time()
+            ch(f"OPTIMIZE TABLE headlines PARTITION {p} FINAL", {"max_execution_time": 3600})
+            log(f"{p} ({i + 1}/{len(parts)}) {n} parts -> 1, {time.time() - t:.0f}s, {free_gb():.1f} GB free")
+    finally:
+        ch("ALTER TABLE headlines RESET SETTING max_bytes_to_merge_at_max_space_in_pool, old_parts_lifetime")
+    log(f"optimize done in {(time.time() - started) / 60:.0f} min")
+
+
 def status():
     print(ch("SELECT toYYYYMM(ts) AS partition, count() AS rows, countIf(copy = 0) AS stories, countIf(copy = 1) AS outlets, countIf(copy = 2) AS repeats FROM headlines GROUP BY partition ORDER BY partition FORMAT PrettyCompactMonoBlock"))
 
@@ -248,6 +280,8 @@ if __name__ == "__main__":
         labels()
     elif cmd == "backfill":
         backfill()
+    elif cmd == "optimize":
+        optimize()
     elif cmd == "status":
         status()
     else:

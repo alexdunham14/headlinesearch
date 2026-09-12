@@ -8,7 +8,7 @@ rows (September 2026, growing by four million a month) from the GDELT Global
 Knowledge Graph (GKG), which has carried page titles since September 2019. For the person who wants to know when a phrase first
 turned up in the news, or what a particular outlet headlined that week.
 
-## Definition of done
+## What it does
 
 - A page with one search box, a word/substring toggle, a newest/oldest-first
   toggle, a date range, a source box and a plain list of results: the

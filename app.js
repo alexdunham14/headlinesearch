@@ -175,10 +175,10 @@
     if (!rows.length) {
       $("status").textContent = page > 1 ? "No more results." : "Nothing found.";
     } else {
-      // "Displaying the newest 100 headlines from 316 matching articles": the
+      // "Displaying 100 headlines from the latest 316 articles": the
       // rows behind the page, once copies collapsed.
       const n = rows.length;
-      $("status").textContent = `Displaying the ${oldest ? "oldest" : "newest"} ${fmt(n)} headline${n === 1 ? "" : "s"} from ${fmt(r.used)} matching article${r.used === 1 ? "" : "s"}.`;
+      $("status").textContent = `Displaying ${fmt(n)} headline${n === 1 ? "" : "s"} from the ${oldest ? "earliest" : "latest"} ${fmt(r.used)} article${r.used === 1 ? "" : "s"}.`;
     }
     $("actions").hidden = !(rows.length || chart);
     $("count").hidden = !!chart;

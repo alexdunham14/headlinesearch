@@ -146,8 +146,9 @@ and `title` itself stays as GDELT recorded it. `story_key()` is a SQL
 function in the database (scripts/schema.sql), so the ingest, the
 one-off backfill and the Worker's searches agree; `scripts/copyflag.py`
 explains the rule, builds the label table and rebuilt the archive on
-2026-09-12 (in August 2026, 58% of rows were stories, 30% outlets'
-copies, 12% same-site repeats; iHeart's 218,853 rows were 7,972 stories).
+2026-09-12 (over the whole archive 57% of rows are stories, 32% outlets'
+copies and 11% same-site repeats: 184.7M, 103.4M and 37.3M of 325.4M; in
+August 2026 iHeart's 218,853 rows were 7,972 stories).
 The counts are then `countIf(copy = 0)`, `countIf(copy <= 1)` and
 `count()`, all answered from the text index plus the flag column (a month
 of "trump" in 0.14 s). Two limits: outlets rewrite wire headlines, so

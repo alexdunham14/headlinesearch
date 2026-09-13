@@ -417,9 +417,9 @@ GDELT's and from the news collector's. The root repo's
   for every Substack subdomain, so it is read once a run from substack.com
   and applied to all of them; a custom domain's own file is read and its
   answer kept for a day); conditional requests wherever the platform
-  answers 304; one request a second to Substack across every thread (at
-  two a second sustained it answers 429 to about one in eight), one a
-  second to Medium; a 429 halves the pace (several within ten seconds
+  answers 304; half a request a second to Substack across every thread
+  (at one a second sustained it answers 429 to about one in twenty-five,
+  at two a second to one in eight), one a second to Medium; a 429 halves the pace (several within ten seconds
   count once, since four workers can meet the same limit together; the
   floor is a request every eight seconds), which comes back a step for
   every five minutes without another, and twenty of them end the run;

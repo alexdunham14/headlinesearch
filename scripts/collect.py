@@ -128,7 +128,11 @@ def fetch(url, etag="", last_modified="", timeout=TIMEOUT):
             body = e.read(200_000)
         except Exception:
             pass
-        return Fetched(e.code, body, url=e.url or url, error=f"http {e.code}", ms=int((time.monotonic() - t0) * 1000))
+        # A 304 carries the validators too; keeping them is what lets the
+        # next request be conditional again.
+        return Fetched(e.code, body, e.headers.get("ETag", "") if e.headers else "",
+                       e.headers.get("Last-Modified", "") if e.headers else "",
+                       url=e.url or url, error=f"http {e.code}", ms=int((time.monotonic() - t0) * 1000))
     except Exception as e:  # URLError, socket.timeout, ssl errors, RemoteDisconnected, ...
         return Fetched(0, b"", url=url, error=type(e).__name__ + ": " + str(e)[:120], ms=int((time.monotonic() - t0) * 1000))
 
@@ -416,8 +420,8 @@ def conditional_headers():
     """The ETag and Last-Modified each feed answered with last time, so that
     an unchanged feed costs a 304."""
     out = {}
-    q = ("SELECT feed, argMax(etag, ts), argMax(last_modified, ts) FROM collect.fetches "
-         "WHERE ts > now() - INTERVAL 7 DAY AND label IN ('ok', '304') GROUP BY feed FORMAT TSV")
+    q = ("SELECT feed, argMaxIf(etag, ts, etag != ''), argMaxIf(last_modified, ts, last_modified != '') "
+         "FROM collect.fetches WHERE ts > now() - INTERVAL 7 DAY AND label IN ('ok', '304') GROUP BY feed FORMAT TSV")
     for line in ch(q).splitlines():
         feed, etag, lm = (line.split("\t") + ["", ""])[:3]
         out[feed] = (etag, lm)

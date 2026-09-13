@@ -44,8 +44,9 @@ read with it and obeyed (the platform serves one file for every Substack
 subdomain, so it is read once a run from substack.com and applied to all
 of them; a custom domain's own file is read and its answer kept for a day);
 conditional requests wherever the platform answers 304; a global rate
-limit per platform (scripts/blogs.json, one request a second for Substack,
-which answers 429 to about one request in eight at two a second)
+limit per platform (scripts/blogs.json, half a request a second for
+Substack, which answers 429 to about one request in twenty-five at one a
+second)
 with a few requests in flight; no retries inside a run; nothing that gets
 round a wall: an invitation-only publication answers 403 and is marked
 blocked and left alone.
@@ -258,8 +259,8 @@ def conditional_headers(platform):
     """The ETag and Last-Modified each index or file answered with last
     time, so that an unchanged one costs a 304."""
     out = {}
-    q = (f"SELECT target, argMax(etag, ts), argMax(last_modified, ts) FROM blogs.fetches "
-         f"WHERE platform = '{platform}' AND ts > now() - INTERVAL 30 DAY AND label IN ('ok', '304') "
+    q = (f"SELECT target, argMaxIf(etag, ts, etag != ''), argMaxIf(last_modified, ts, last_modified != '') "
+         f"FROM blogs.fetches WHERE platform = '{platform}' AND ts > now() - INTERVAL 30 DAY AND label IN ('ok', '304') "
          f"GROUP BY target FORMAT TSV")
     for line in ch(q).splitlines():
         target, etag, lm = (line.split("\t") + ["", ""])[:3]
@@ -602,9 +603,7 @@ def run_substack(cfg, dry_run=False, limit=None):
 
     counts = defaultdict(int)
     total = {"items": 0, "new": 0, "changed": 0, "done": 0}
-    if not dry_run:
-        log_fetches(log)      # the index fetches
-    log = []
+    index_log, log = log, []   # logged when the run completes, see below
 
     def flush(batch):
         """Store one batch of fetched publications: their posts, their
@@ -657,8 +656,14 @@ def run_substack(cfg, dry_run=False, limit=None):
                 batch = []
     if batch:
         flush(batch)
-    if not dry_run and counts.get("http 429"):
-        log_fetches([fetch_row("substack", "run", "throttled", "http 429", collect.Fetched(status=429), counts["http 429"], seen)])
+    if not dry_run:
+        # The index fetch rows carry the ETags the next run sends back. They
+        # are written only now, when every queued publication has been
+        # handled, so that a run that dies re-reads the index in full and
+        # queues again what it never reached.
+        log_fetches(index_log)
+        if counts.get("http 429"):
+            log_fetches([fetch_row("substack", "run", "throttled", "http 429", collect.Fetched(status=429), counts["http 429"], seen)])
     print(f"{fmt(seen)[:16]} substack index {'changed' if index is not None else 'unchanged'} "
           f"{len(index or {})} listed, queued {len(queue)} (new sites {len(new_rows)} recorded), items {total['items']}, "
           f"new {total['new']} changed {total['changed']} "

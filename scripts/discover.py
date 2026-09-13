@@ -118,6 +118,11 @@ def probe_site(domain):
         site["home"] = "ok"
     if site["robots_all"].startswith(("disallow-all", "unreachable")):
         return site
+    # A host that never answers (TLS completes, then silence: the Post, the
+    # McClatchy papers) would cost a timeout per candidate; one is enough.
+    if hf.status == 0:
+        site["home"] = "unreachable"
+        return site
 
     cands = []
     for u in site["robots_sitemaps"]:

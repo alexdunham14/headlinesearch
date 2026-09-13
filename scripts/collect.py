@@ -79,7 +79,7 @@ CH_PASSWORD = os.environ.get("CH_PASSWORD", "")
 WS_RE = re.compile(r"\s+")
 # Query parameters that mark where a click came from, not which page it is.
 TRACKING_RE = re.compile(r"^(utm_.*|fbclid|gclid|ocid|cmpid|cmp|ns_.*|mc_.*|ito|ftag|src|ref|sref|rss|output|s|ss|smid|smtyp|partner|icid|ICID|itm_.*|_gl|taid|guccounter|guce_referrer.*|syn-.*)$")
-CHALLENGE_RE = re.compile(r"Just a moment|Please enable JS|challenge-platform|_cf_chl|cf-browser-verification|captcha-delivery|DataDome|Access Denied|Request unsuccessful|Incapsula|perimeterx|px-captcha", re.I)
+CHALLENGE_RE = re.compile(r"Just a moment|Please enable JS|challenge-platform|_cf_chl|cf-browser-verification|captcha-delivery|DataDome|Access Denied|Request unsuccessful|Incapsula|perimeterx|px-captcha|/_fs-ch-", re.I)
 
 
 # ------------------------------------------------------------------ fetching

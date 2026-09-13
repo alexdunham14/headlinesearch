@@ -71,3 +71,20 @@ CREATE TABLE IF NOT EXISTS collect.staging (
   guid    String
 )
 ENGINE = Memory;
+
+-- The same, for scripts/backfill.py, which runs beside the hourly collector.
+CREATE TABLE IF NOT EXISTS collect.staging_backfill AS collect.staging ENGINE = Memory;
+
+-- One row per Wayback capture scripts/backfill.py has processed for a feed,
+-- so that a run can be stopped and resumed. label is ok, parse, error or
+-- http NNN; items is what the capture held, whether or not new.
+CREATE TABLE IF NOT EXISTS collect.backfill (
+  feed    LowCardinality(String),
+  capture String,
+  label   LowCardinality(String),
+  items   UInt32,
+  http    UInt16,
+  done    DateTime('UTC') DEFAULT now()
+)
+ENGINE = ReplacingMergeTree(done)
+ORDER BY (feed, capture);

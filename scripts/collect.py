@@ -416,16 +416,21 @@ def conditional_headers():
     return out
 
 
-INSERT_NEW = """
+def insert_new_sql(staging="collect.staging"):
+    """The insert of a staged batch: every (domain, url, kind, title) not yet
+    in headlines, numbered after the versions already there. The staging
+    table is a parameter because scripts/backfill.py runs beside the hourly
+    collector and must not truncate its batch."""
+    return f"""
 INSERT INTO collect.headlines (ts, domain, url, title, seen, version, feed, kind, section, guid)
 SELECT s.ts, s.domain, s.url, s.title, s.seen,
-       toUInt16(e.n + row_number() OVER (PARTITION BY s.domain, s.url, s.kind ORDER BY s.ts, s.title)) AS version,
+       toUInt16(e.n + row_number() OVER (PARTITION BY s.domain, s.url, s.kind ORDER BY s.seen, s.ts, s.title)) AS version,
        s.feed, s.kind, s.section, s.guid
-FROM collect.staging AS s
+FROM {staging} AS s
 LEFT JOIN (
   SELECT domain, url, kind, count() AS n, groupArray(title) AS titles
   FROM collect.headlines
-  WHERE (domain, url) IN (SELECT domain, url FROM collect.staging)
+  WHERE (domain, url) IN (SELECT domain, url FROM {staging})
   GROUP BY domain, url, kind
 ) AS e ON s.domain = e.domain AND s.url = e.url AND s.kind = e.kind
 WHERE NOT has(e.titles, s.title)
@@ -434,13 +439,23 @@ WHERE NOT has(e.titles, s.title)
 
 # ------------------------------------------------------------------- the run
 
+BLOX_RE = re.compile(r"/search/\?f=rss|/tncms/")
+
+
 def load_feeds(path=FEEDS_PATH):
+    """The enabled feeds, each with a `group`: the host, except that every
+    feed of a site on the BLOX platform (TownNews: most Lee Enterprises and
+    CNHI dailies, recognisable by their latest-articles feed) is in one
+    group, because the platform rate-limits an address across all its
+    sites and twenty of them fetched at once answer 429."""
     with open(path) as fh:
         doc = json.load(fh)
     feeds = [f for f in doc["feeds"] if f.get("enabled", True)]
+    blox = {f["domain"] for f in feeds if BLOX_RE.search(f["url"])}
     for f in feeds:
         f.setdefault("section", "")
         f["kind"] = "sitemap" if f.get("kind") == "sitemap" else "rss"
+        f["group"] = "blox" if f["domain"] in blox else urllib.parse.urlsplit(f["url"]).netloc.lower()
     return feeds
 
 
@@ -455,13 +470,19 @@ def run(feeds, dry_run=False, workers=8):
     seen = utcnow()
     robots = Robots()
     cond = {} if dry_run else conditional_headers()
-    # One host at a time: feeds grouped by host, hosts in parallel.
+    # One host at a time: feeds grouped by host (or platform), groups in
+    # parallel, a pause between requests to a shared platform.
     by_host = defaultdict(list)
     for f in feeds:
-        by_host[urllib.parse.urlsplit(f["url"]).netloc.lower()].append(f)
+        by_host[f["group"]].append(f)
 
     def host_batch(fs):
-        return [one_feed(f, cond, robots) for f in fs]
+        out = []
+        for i, f in enumerate(fs):
+            if i and f["group"] == "blox":
+                time.sleep(2)
+            out.append(one_feed(f, cond, robots))
+        return out
 
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
@@ -488,7 +509,7 @@ def run(feeds, dry_run=False, workers=8):
         if rows:
             payload = "\n".join(json.dumps(r, ensure_ascii=False) for r in rows).encode()
             ch("INSERT INTO collect.staging FORMAT JSONEachRow", payload)
-            ch(INSERT_NEW)
+            ch(insert_new_sql())
             ch("TRUNCATE TABLE collect.staging")
             q = (f"SELECT feed, count(), countIf(version > 1) FROM collect.headlines "
                  f"WHERE seen = '{seen:%Y-%m-%d %H:%M:%S}' GROUP BY feed FORMAT TSV")

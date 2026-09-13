@@ -665,7 +665,7 @@ def run_leaderboards(cfg, dry_run=False):
                 time.sleep(30 * (attempt + 1))   # the platform asked for less
             d = json_body(g) if label == "ok" else None
             pubs = d.get("publications") if isinstance(d, dict) else None
-            log.append(fetch_row("substack", url, "leaderboard", label if pubs is not None else "parse", g, len(pubs or []), seen))
+            log.append(fetch_row("substack", url, "leaderboard", label if (label != "ok" or pubs is not None) else "parse", g, len(pubs or []), seen))
             if g.status == 429:
                 complete = False   # the rest next hour; what was found is kept
                 break

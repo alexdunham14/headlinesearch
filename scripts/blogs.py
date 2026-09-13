@@ -19,7 +19,7 @@ writer list has to be maintained because the platform publishes one:
   index; their subdomain redirects. Substack's category leaderboards
   (/api/v1/category/public/ID/all, 33 categories, about 22 pages of 25)
   list them with their domain, so a weekly sweep of the leaderboards adds
-  them, and they are polled through their sitemap's ETag (a 304 when
+  them, and they are polled through the archive API's ETag (a 304 when
   nothing changed) instead of the index.
 - Medium. medium.com/sitemap/sitemap.xml indexes one file per day of every
   post, back to 2012, about 10,000 a day; the file for a day appears the
@@ -44,7 +44,8 @@ read with it and obeyed (the platform serves one file for every Substack
 subdomain, so it is read once a run from substack.com and applied to all
 of them; a custom domain's own file is read and its answer kept for a day);
 conditional requests wherever the platform answers 304; a global rate
-limit per platform (scripts/blogs.json, two requests a second for Substack)
+limit per platform (scripts/blogs.json, one request a second for Substack,
+which answers 429 to about one request in eight at two a second)
 with a few requests in flight; no retries inside a run; nothing that gets
 round a wall: an invitation-only publication answers 403 and is marked
 blocked and left alone.
@@ -94,27 +95,38 @@ LEADERBOARD_MAX_PAGES = 60
 
 # ---------------------------------------------------------------- utilities
 
+RECOVER_AFTER = 600     # seconds without a 429 before the pace comes back a step
+
+
 class Limiter:
     """A global pace for one platform: at most `per_second` requests a
-    second across every thread, evenly spaced."""
+    second across every thread, evenly spaced. A 429 halves the pace;
+    every ten minutes without another it comes back a step."""
 
     def __init__(self, per_second):
-        self.interval = 1.0 / max(per_second, 0.01)
+        self.base = 1.0 / max(per_second, 0.01)
+        self.interval = self.base
         self.lock = threading.Lock()
         self.next = 0.0
+        self.slowed_at = 0.0
 
     def wait(self):
         with self.lock:
-            t = max(time.monotonic(), self.next)
+            now = time.monotonic()
+            if self.interval > self.base and now - self.slowed_at > RECOVER_AFTER:
+                self.interval = max(self.base, self.interval / 2)
+                self.slowed_at = now
+            t = max(now, self.next)
             self.next = t + self.interval
         delay = t - time.monotonic()
         if delay > 0:
             time.sleep(delay)
 
     def slow(self):
-        """Halve the pace for the rest of the run (a 429 was seen)."""
+        """Halve the pace (a 429 was seen)."""
         with self.lock:
             self.interval = min(self.interval * 2, 10.0)
+            self.slowed_at = time.monotonic()
 
 
 def fmt(d):
@@ -214,10 +226,17 @@ def store_posts(rows, staging="blogs.staging"):
     ch(f"TRUNCATE TABLE {staging}")
 
 
-def counts_by_site(platform, seen):
+def sql_str(v):
+    return "'" + str(v).replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def counts_by_site(platform, seen, sites=None):
+    """New rows and edits stored with this run's `seen`, per site; `sites`
+    narrows it to a batch."""
     new, changed = defaultdict(int), defaultdict(int)
+    where = f" AND site IN ({', '.join(sql_str(x) for x in sites)})" if sites else ""
     q = (f"SELECT site, count(), countIf(version > 1) FROM blogs.posts "
-         f"WHERE platform = '{platform}' AND seen = '{fmt(seen)}' GROUP BY site FORMAT TSV")
+         f"WHERE platform = '{platform}' AND seen = '{fmt(seen)}'{where} GROUP BY site FORMAT TSV")
     for line in ch(q).splitlines():
         site, n, c = line.split("\t")
         new[site], changed[site] = int(n), int(c)
@@ -458,39 +477,31 @@ def read_archive(base_url, offset, limiter, robots, etag=""):
 
 
 def poll_site(site, row, since, limiter, robots, seen, pages_per_site, mode):
-    """Fetch one publication's newest posts. mode is 'index' (the index said
-    it changed: read the archive) or 'sitemap' (a custom-domain publication:
-    ask its sitemap with the stored ETag first; a 304 means nothing new).
-    Returns (label, rows, log_rows, updates for the site row)."""
+    """Fetch one publication's newest posts from its archive API. mode is
+    'index' (the platform's index said it changed) or 'custom' (a
+    publication on its own domain, which the index does not track: the
+    first page is asked for with the ETag stored last time, and a 304
+    means nothing new). Returns (label, rows, log_rows, updates for the
+    site row)."""
     base = row.get("base_url") or f"https://{site}.substack.com"
     log, updates = [], {}
-    if mode == "sitemap":
-        url = base.rstrip("/") + "/sitemap.xml"
-        if robots is not None and not robots.allowed(url):
-            return ("robots", [], [], {"status": "robots"})
-        limiter.wait()
-        f = fetch(url, etag=row.get("etag", ""))
-        label = classify(f)
-        log.append(fetch_row("substack", site, "sitemap", label, f, 0, seen))
-        if label == "304":
-            return ("304", [], log, {"status": "304"})
-        if label != "ok":
-            return (label, [], log, {"status": label})
-        updates["etag"] = f.etag or ""
-        if f.url and host_of(f.url) != host_of(base):
-            updates["base_url"] = f"https://{host_of(f.url)}"
-            base = updates["base_url"]
     rows, offset, pages, newest = [], 0, 0, row.get("lastmod") or dt.datetime(1970, 1, 1)
     source = archive_url(base, 0, 0).split("?")[0]
     while pages < pages_per_site:
-        label, posts, f = read_archive(base, offset, limiter, robots)
+        etag = row.get("etag", "") if mode == "custom" and offset == 0 else ""
+        label, posts, f = read_archive(base, offset, limiter, robots, etag=etag)
         log.append(fetch_row("substack", site, "archive", label, f, len(posts), seen))
+        if label == "304":
+            return ("304", [], log, {"status": "304"})
         if label != "ok":
             return (label, rows, log, {"status": label})
-        if f.url and mode == "index" and host_of(f.url) != host_of(base) and offset == 0:
-            # The subdomain redirected: the publication moved to its own domain.
-            updates["domain"] = host_of(f.url)
-            updates["base_url"] = f"https://{host_of(f.url)}"
+        if offset == 0:
+            if mode == "custom":
+                updates["etag"] = f.etag or ""
+            if f.url and host_of(f.url) != host_of(base):
+                # The subdomain redirected: the publication moved to its own domain.
+                updates["domain"] = host_of(f.url)
+                updates["base_url"] = f"https://{host_of(f.url)}"
         page = archive_posts(base, posts, site, seen, source)
         rows.extend(page)
         pages += 1
@@ -526,14 +537,14 @@ def run_substack(cfg, dry_run=False, limit=None):
                 else:
                     new_rows.append(site_row("substack", site, lastmod=lastmod, listed="index", status="listed"))
             elif st.domain:
-                continue    # polled through its own sitemap below
+                continue    # polled through its own archive below
             elif lastmod > st.lastmod:
                 queue.append((site, "index", lastmod))
-    # Custom-domain publications: every few hours, through their sitemap's ETag.
+    # Custom-domain publications: every few hours, through their archive's ETag.
     due = seen - dt.timedelta(hours=cfg.get("custom_every_hours", 3))
     for site, st in state.items():
         if st.domain and st.fetched < due and st.status not in ("blocked", "http 404", "http 410"):
-            queue.append((site, "sitemap", None))
+            queue.append((site, "custom", None))
     if limit:
         queue = queue[:limit]
     full = {} if dry_run else load_site_rows("substack", [q[0] for q in queue])
@@ -544,9 +555,12 @@ def run_substack(cfg, dry_run=False, limit=None):
             robots.seeded[row["domain"]] = (row["robots"] == "allow", row["robots_checked"])
     limiter = Limiter(cfg.get("rate", 2))
     pages_per_site = cfg.get("pages_per_site", 4)
-    results = []
     too_many = threading.Event()
     n429 = [0]
+    # The publications the index lists but this run will not fetch are
+    # recorded now, so a run that dies later has still kept the list.
+    if not dry_run:
+        store_sites(new_rows)
 
     def one(item):
         site, row, mode, index_lastmod = item
@@ -575,52 +589,70 @@ def run_substack(cfg, dry_run=False, limit=None):
             updates["lastmod"] = index_lastmod   # do not retry it every hour for ever
         return site, row, label, rows, site_log, updates
 
+    counts = defaultdict(int)
+    total = {"items": 0, "new": 0, "changed": 0, "done": 0}
+    if not dry_run:
+        log_fetches(log)      # the index fetches
+    log = []
+
+    def flush(batch):
+        """Store one batch of fetched publications: their posts, their
+        fetch log rows with the new-row counts, their site rows. A run
+        that dies loses at most one batch."""
+        rows, keyed, blog, site_rows = [], set(), [], []
+        for site, row, label, site_rows_, site_log, updates in batch:
+            counts[label] += 1
+            blog.extend(site_log)
+            for r in site_rows_:
+                key = (r["site"], r["url"], r["kind"], r["title"])
+                if key not in keyed:
+                    keyed.add(key)
+                    rows.append(r)
+            if updates is None:
+                continue
+            merged = dict(row)
+            merged.update(updates)
+            merged.setdefault("listed", "index")
+            merged["seen"] = seen
+            merged["fetched"] = seen if label in ("ok", "304") else row.get("fetched", dt.datetime(1970, 1, 1))
+            if merged.get("domain") and merged["domain"] in robots.checked:
+                merged["robots"] = "allow" if label != "robots" else "deny"
+                merged["robots_checked"] = robots.checked[merged["domain"]]
+            site_rows.append(site_row("substack", site, **{k: v for k, v in merged.items() if k in SITE_COLS and k not in ("platform", "site")}))
+        new_by, changed_by = defaultdict(int), defaultdict(int)
+        if not dry_run:
+            store_posts(rows)
+            if rows:
+                new_by, changed_by = counts_by_site("substack", seen, [b[0] for b in batch])
+            for r in blog:
+                if r["kind"] == "archive":
+                    r["new"], r["changed"] = new_by[r["target"]], changed_by[r["target"]]
+            log_fetches(blog)
+            store_sites(site_rows)
+        total["items"] += len(rows)
+        total["new"] += sum(new_by.values())
+        total["changed"] += sum(changed_by.values())
+        total["done"] += len(batch)
+        if total["done"] < len(queue):
+            print(f"  {total['done']}/{len(queue)} publications, items {total['items']}, new {total['new']}, "
+                  f"changed {total['changed']}, pace {1 / limiter.interval:.2g}/s", flush=True)
+
+    batch, every = [], cfg.get("flush_every", 200)
     with concurrent.futures.ThreadPoolExecutor(max_workers=cfg.get("workers", 4)) as ex:
         for r in ex.map(one, queue):
-            results.append(r)
-
-    rows, keyed = [], set()
-    for site, row, label, site_rows, site_log, updates in results:
-        log.extend(site_log)
-        for r in site_rows:
-            key = (r["site"], r["url"], r["kind"], r["title"])
-            if key not in keyed:
-                keyed.add(key)
-                rows.append(r)
-    site_rows = list(new_rows)
-    for site, row, label, _, _, updates in results:
-        if updates is None:
-            continue
-        merged = dict(row)
-        merged.update(updates)
-        merged.setdefault("listed", "index")
-        merged["seen"] = seen
-        merged["fetched"] = seen if label in ("ok", "304") else row.get("fetched", dt.datetime(1970, 1, 1))
-        if merged.get("domain") and merged["domain"] in robots.checked:
-            merged["robots"] = "allow" if label != "robots" else "deny"
-            merged["robots_checked"] = robots.checked[merged["domain"]]
-        site_rows.append(site_row("substack", site, **{k: v for k, v in merged.items() if k in SITE_COLS}))
-
-    new_by, changed_by = defaultdict(int), defaultdict(int)
-    if not dry_run:
-        store_posts(rows)
-        if rows:
-            new_by, changed_by = counts_by_site("substack", seen)
-        for r in log:
-            if r["kind"] == "archive":
-                r["new"], r["changed"] = new_by[r["target"]], changed_by[r["target"]]
-        log_fetches(log)
-        store_sites(site_rows)
-    counts = defaultdict(int)
-    for _, _, label, _, _, _ in results:
-        counts[label] += 1
+            batch.append(r)
+            if len(batch) >= every:
+                flush(batch)
+                batch = []
+    if batch:
+        flush(batch)
     if not dry_run and counts.get("http 429"):
         log_fetches([fetch_row("substack", "run", "throttled", "http 429", collect.Fetched(status=429), counts["http 429"], seen)])
     print(f"{fmt(seen)[:16]} substack index {'changed' if index is not None else 'unchanged'} "
-          f"{len(index or {})} listed, queued {len(queue)} (new sites {len(new_rows)} recorded), items {len(rows)}, "
-          f"new {sum(new_by.values())} changed {sum(changed_by.values())} "
+          f"{len(index or {})} listed, queued {len(queue)} (new sites {len(new_rows)} recorded), items {total['items']}, "
+          f"new {total['new']} changed {total['changed']} "
           + " ".join(f"{k}={v}" for k, v in sorted(counts.items())), flush=True)
-    return results
+    return counts
 
 
 # ------------------------------------------------------- substack leaderboards

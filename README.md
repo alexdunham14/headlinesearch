@@ -393,7 +393,8 @@ GDELT's and from the news collector's. The root repo's
   the index and their subdomain merely redirects; the category
   leaderboards (`/api/v1/category/public/ID/all`, 33 categories of about
   22 pages) list them with their domain, so a weekly sweep adds them and
-  they are polled through their own sitemap's ETag every few hours. The
+  they are polled every few hours through the archive API with the ETag
+  stored last time, so an unchanged publication costs a 304. The
   first run reads only publications that posted in the last day
   (`first_run_days`); the rest are recorded for the history walk.
 - **Medium.** `medium.com/sitemap/sitemap.xml` indexes one file per day of
@@ -416,9 +417,11 @@ GDELT's and from the news collector's. The root repo's
   for every Substack subdomain, so it is read once a run from substack.com
   and applied to all of them; a custom domain's own file is read and its
   answer kept for a day); conditional requests wherever the platform
-  answers 304; two requests a second to Substack across every thread, one
-  a second to Medium; a 429 halves the pace for the rest of the run and
-  twenty of them end it; no retries inside a run; nothing that gets round
+  answers 304; one request a second to Substack across every thread (at
+  two a second sustained it answers 429 to about one in eight), one a
+  second to Medium; a 429 halves the pace, which comes back a step for
+  every ten minutes without another, and twenty of them end the run; no
+  retries inside a run; nothing that gets round
   a wall (an invitation-only publication answers 403 and is marked
   `blocked`). Never a post page.
 - **Terms, as read on 2026-09-13.** Substack's API terms
@@ -443,8 +446,10 @@ GDELT's and from the news collector's. The root repo's
   box, once the terms and the disk (13 GB free on 2026-09-13) are settled.
 - **Checking on it.** `blogs.fetches` has a row per request with the label;
   `blogs.sites` the state of every publication; `journalctl -u blogs` each
-  run's one-line summary per platform. `scripts/blogs.py site SUBDOMAIN`
-  prints one publication's newest posts.
+  run's one-line summary per platform, with a progress line every 200
+  publications on a long run. Rows, fetch log and site state are written
+  every 200 publications, so a run that dies loses at most that many.
+  `scripts/blogs.py site SUBDOMAIN` prints one publication's newest posts.
 
 ## Running it locally
 

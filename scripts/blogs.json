@@ -3,14 +3,15 @@
   "substack": {
     "enabled": true,
     "index": "https://substack.com/sitemap.xml",
-    "rate": 2,
+    "rate": 1,
     "workers": 4,
     "first_run_days": 1,
     "pages_per_site": 4,
     "custom_every_hours": 3,
     "leaderboards_every_days": 7,
-    "note": "The platform's sitemap index lists every publication on a substack.com subdomain with the time of its last post; the ones on their own domain come from the category leaderboards (weekly sweep at leaderboard_rate a second; a 429 from substack.com halts it and the rest is done next hour) and are polled through their sitemap's ETag every custom_every_hours. first_run_days: on the first run, only publications that posted within this many days are read; the rest are recorded for the history walk. pages_per_site caps how far an hourly run pages back for one publication (50 a page). robots.txt (one file for every subdomain) allows the sitemaps and the archive API; the API terms (substack.com/api-tos, 2026-01-08) allow discovery and analytics over public publications and forbid reselling the data as a dataset; the general terms of service have a clause against crawling or scraping any part of Substack, noted for Alex on 2026-09-13. A 429 from a publication halves the pace for the rest of the run; after twenty the rest of the queue waits for next hour.",
-    "leaderboard_rate": 0.5
+    "note": "The platform's sitemap index lists every publication on a substack.com subdomain with the time of its last post; the ones on their own domain come from the category leaderboards (weekly sweep at leaderboard_rate a second; a 429 from substack.com halts it and the rest is done next hour) and are polled through their archive API's ETag every custom_every_hours (a 304 when nothing changed). first_run_days: on the first run, only publications that posted within this many days are read; the rest are recorded for the history walk. pages_per_site caps how far an hourly run pages back for one publication (50 a page). robots.txt (one file for every subdomain) allows the sitemaps and the archive API; the API terms (substack.com/api-tos, 2026-01-08) allow discovery and analytics over public publications and forbid reselling the data as a dataset; the general terms of service have a clause against crawling or scraping any part of Substack, noted for Alex on 2026-09-13. A 429 from a publication halves the pace, which comes back a step for every ten minutes without another; after twenty the rest of the queue waits for next hour. Posts, fetch log and site state are written every flush_every publications. rate 1 since 2026-09-13 night: at two a second sustained, Substack answered 429 to about one request in eight.",
+    "leaderboard_rate": 0.5,
+    "flush_every": 200
   },
   "medium": {
     "enabled": true,

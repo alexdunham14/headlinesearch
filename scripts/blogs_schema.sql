@@ -89,12 +89,12 @@ CREATE TABLE IF NOT EXISTS blogs.queue (site String) ENGINE = Memory;
 -- One row per publication the platforms list, latest state wins (seen).
 -- For Substack: site is the subdomain, domain the custom domain if the
 -- publication has one (then base_url is on that domain and the platform's
--- sitemap index no longer tracks it, so it is polled through its own
--- sitemap's ETag), lastmod the platform's last-post time from the index
+-- sitemap index no longer tracks it, so it is polled through its archive
+-- API's ETag), lastmod the platform's last-post time from the index
 -- or the newest post seen, listed where it came from (index, leaderboard,
 -- or both), category the leaderboard categories, name, language,
 -- subscribers and first_post from the leaderboard. etag is the ETag of
--- the publication's sitemap.xml (custom-domain polling). status is the
+-- the publication's archive API answered with (custom-domain polling). status is the
 -- last fetch's label (ok, 304, blocked, http NNN, error, robots, listed
 -- for a row never fetched); fetched when. robots and robots_checked cache
 -- the host's robots.txt answer for a day (RFC 9309 allows 24 hours).

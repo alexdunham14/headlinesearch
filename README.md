@@ -419,9 +419,12 @@ GDELT's and from the news collector's. The root repo's
   answer kept for a day); conditional requests wherever the platform
   answers 304; one request a second to Substack across every thread (at
   two a second sustained it answers 429 to about one in eight), one a
-  second to Medium; a 429 halves the pace, which comes back a step for
-  every ten minutes without another, and twenty of them end the run; no
-  retries inside a run; nothing that gets round
+  second to Medium; a 429 halves the pace (several within ten seconds
+  count once, since four workers can meet the same limit together; the
+  floor is a request every eight seconds), which comes back a step for
+  every five minutes without another, and twenty of them end the run;
+  the journal shows each change; no retries inside a run; nothing that
+  gets round
   a wall (an invitation-only publication answers 403 and is marked
   `blocked`). Never a post page.
 - **Terms, as read on 2026-09-13.** Substack's API terms

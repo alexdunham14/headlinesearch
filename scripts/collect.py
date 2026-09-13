@@ -63,6 +63,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import urllib.robotparser
+import ssl
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 
@@ -82,6 +83,10 @@ CH_PASSWORD = os.environ.get("CH_PASSWORD", "")
 WS_RE = re.compile(r"\s+")
 # Query parameters that mark where a click came from, not which page it is.
 TRACKING_RE = re.compile(r"^(utm_.*|fbclid|gclid|ocid|cmpid|cmp|ns_.*|mc_.*|ito|ftag|src|ref|sref|rss|output|s|ss|smid|smtyp|partner|icid|ICID|itm_.*|_gl|taid|guccounter|guce_referrer.*|syn-.*)$")
+# One TLS context for every fetch: without it http.client builds a new one
+# per connection, reading the CA bundle each time.
+OPENER = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ssl.create_default_context()))
+
 CHALLENGE_RE = re.compile(r"Just a moment|Please enable JS|challenge-platform|_cf_chl|cf-browser-verification|captcha-delivery|DataDome|Access Denied|Request unsuccessful|Incapsula|perimeterx|px-captcha|/_fs-ch-", re.I)
 
 
@@ -106,7 +111,7 @@ def fetch(url, etag="", last_modified="", timeout=TIMEOUT):
     req = urllib.request.Request(url, headers=headers)
     t0 = time.monotonic()
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with OPENER.open(req, timeout=timeout) as r:
             body = r.read(MAX_BYTES + 1)
             if len(body) > MAX_BYTES:
                 return Fetched(r.status, b"", url=r.url, error="too large", ms=int((time.monotonic() - t0) * 1000))

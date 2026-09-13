@@ -95,20 +95,26 @@ LEADERBOARD_MAX_PAGES = 60
 
 # ---------------------------------------------------------------- utilities
 
-RECOVER_AFTER = 600     # seconds without a 429 before the pace comes back a step
+RECOVER_AFTER = 300     # seconds without a 429 before the pace comes back a step
+SLOW_WINDOW = 10        # 429s within this many seconds of the last slow-down count as the same one
+MAX_INTERVAL = 8.0      # seconds between requests at the slowest
 
 
 class Limiter:
     """A global pace for one platform: at most `per_second` requests a
-    second across every thread, evenly spaced. A 429 halves the pace;
-    every ten minutes without another it comes back a step."""
+    second across every thread, evenly spaced. A 429 halves the pace
+    (several within ten seconds count once, since four workers can meet
+    the same limit together); every five minutes without another it comes
+    back a step, to the configured pace at most. Changes are printed, so
+    the journal shows them."""
 
-    def __init__(self, per_second):
+    def __init__(self, per_second, name=""):
         self.base = 1.0 / max(per_second, 0.01)
         self.interval = self.base
         self.lock = threading.Lock()
         self.next = 0.0
         self.slowed_at = 0.0
+        self.name = name
 
     def wait(self):
         with self.lock:
@@ -116,6 +122,7 @@ class Limiter:
             if self.interval > self.base and now - self.slowed_at > RECOVER_AFTER:
                 self.interval = max(self.base, self.interval / 2)
                 self.slowed_at = now
+                print(f"  {self.name} pace back to one request per {self.interval:.3g} s", flush=True)
             t = max(now, self.next)
             self.next = t + self.interval
         delay = t - time.monotonic()
@@ -125,8 +132,12 @@ class Limiter:
     def slow(self):
         """Halve the pace (a 429 was seen)."""
         with self.lock:
-            self.interval = min(self.interval * 2, 10.0)
-            self.slowed_at = time.monotonic()
+            now = time.monotonic()
+            if now - self.slowed_at < SLOW_WINDOW:
+                return
+            self.interval = min(self.interval * 2, MAX_INTERVAL)
+            self.slowed_at = now
+            print(f"  {self.name} 429: pace down to one request per {self.interval:.3g} s", flush=True)
 
 
 def fmt(d):
@@ -553,7 +564,7 @@ def run_substack(cfg, dry_run=False, limit=None):
     for site, row, mode, _ in queue:
         if row.get("robots") and row.get("domain"):
             robots.seeded[row["domain"]] = (row["robots"] == "allow", row["robots_checked"])
-    limiter = Limiter(cfg.get("rate", 2))
+    limiter = Limiter(cfg.get("rate", 2), "substack")
     pages_per_site = cfg.get("pages_per_site", 4)
     too_many = threading.Event()
     n429 = [0]
@@ -662,7 +673,7 @@ def run_leaderboards(cfg, dry_run=False):
     subdomain, the custom domain, the name, language and size. Publications
     on their own domain are the reason: the index does not list them."""
     seen = utcnow()
-    limiter = Limiter(cfg.get("leaderboard_rate", 0.5))
+    limiter = Limiter(cfg.get("leaderboard_rate", 0.5), "leaderboards")
     robots = PlatformRobots(shared={".substack.com": "substack.com"})
     log = []
     cats_url = "https://substack.com/api/v1/categories"
@@ -824,7 +835,7 @@ def load_files(platform):
 def process_medium_files(cfg, todo, files_state, seen, dry_run, staging="blogs.staging", label_kind="file"):
     """Fetch and store a list of (file url, day, index lastmod). Returns
     (rows stored count, per-file labels)."""
-    limiter = Limiter(cfg.get("rate", 1))
+    limiter = Limiter(cfg.get("rate", 1), "medium")
     robots = None if cfg.get("robots") == "ignore" else PlatformRobots()
     log, file_rows, labels, total = [], [], defaultdict(int), 0
     batch = []
@@ -946,7 +957,7 @@ def history_substack(cfg, since, date_from, limit=None, dry_run=False):
     if limit:
         todo = todo[:limit]
     print(f"substack history: {len(todo)} publications to walk back to {date_from:%Y-%m-%d}", flush=True)
-    limiter = Limiter(cfg.get("rate", 2))
+    limiter = Limiter(cfg.get("rate", 2), "substack history")
     robots = PlatformRobots(shared={".substack.com": "substack.com"})
     rows, log, marks_out, n_done = [], [], [], 0
 
@@ -970,6 +981,8 @@ def history_substack(cfg, since, date_from, limit=None, dry_run=False):
             if label != "ok":
                 if label in ("blocked", "http 404", "http 410", "robots"):
                     done = 1
+                if label == "http 429":
+                    limiter.slow()
                 break
             pages += 1
             if not posts:
@@ -1004,7 +1017,7 @@ def run_wordpress(cfg, dry_run=False, limit=None):
     the newest post already stored (or pages_per_tag pages on a first run)."""
     seen = utcnow()
     robots = None if cfg.get("robots") == "ignore" else PlatformRobots()
-    limiter = Limiter(cfg.get("rate", 1))
+    limiter = Limiter(cfg.get("rate", 1), "wordpress")
     api = cfg.get("api", "https://public-api.wordpress.com/rest/v1.1").rstrip("/")
     tags = cfg.get("tags", [])
     if limit:

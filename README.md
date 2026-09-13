@@ -345,6 +345,19 @@ else). Nothing on the site reads it yet. It never fetches an article page.
   edit. `collect.backfill` records each capture done, so a run can be
   stopped and resumed; one request a second to web.archive.org. Run by
   hand under nohup on the box, feed by feed.
+- **A weekly alert on outlets going quiet in GDELT.** `scripts/quiet.py`,
+  run by `.github/workflows/quiet.yml` on Monday mornings, snapshots the
+  public `/api/sources` (every site with 5,000 rows or more: its row count
+  and last day; about 7,600 sites, one TSV a week under `data/quiet/`),
+  compares with the previous weeks, and flags a site as dark (nothing for
+  two weeks, from a hundred rows a week or more) or thinning (the last two
+  weeks under a fifth of its rate). It commits the snapshot and the report
+  and, when a site is newly flagged, opens a GitHub issue with the list
+  and any same-day stops grouped, which is what GitHub mails about. No
+  secrets anywhere: the API is public and the issue uses the workflow's
+  own token. The history was seeded from the database on 2026-09-13 with
+  twelve synthetic weekly snapshots so the first real week had a
+  baseline.
 - **Common Crawl, looked at and set aside** (`scripts/ccsample.py` streams a
   few of CC-NEWS's WARC files and keeps URL, time and title). The news crawl
   is about 330,000 pages a day from 12,000 sites, most of them not

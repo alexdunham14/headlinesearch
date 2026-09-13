@@ -450,7 +450,7 @@ def load_feeds(path=FEEDS_PATH):
     feed of a site on the BLOX platform (TownNews: most Lee Enterprises and
     CNHI dailies, recognisable by their latest-articles feed) is in one
     group, because the platform rate-limits an address across all its
-    sites and twenty of them fetched at once answer 429."""
+    sites and twenty of them fetched at once answer 429; four seconds apart, and without the search feed where a sitemap exists, they answer."""
     with open(path) as fh:
         doc = json.load(fh)
     feeds = [f for f in doc["feeds"] if f.get("enabled", True)]
@@ -485,7 +485,7 @@ def run(feeds, dry_run=False, workers=8):
         out = []
         for i, f in enumerate(fs):
             if i and f["group"] == "blox":
-                time.sleep(2)
+                time.sleep(4)
             out.append(one_feed(f, cond, robots))
         return out
 

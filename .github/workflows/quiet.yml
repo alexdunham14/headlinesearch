@@ -1,0 +1,38 @@
+# Weekly: which outlets went quiet in GDELT? scripts/quiet.py snapshots the
+# public /api/sources, compares with the previous weeks, commits the result
+# and opens an issue when there is something new. The issue is the alert:
+# GitHub mails the owner. No secrets: the API is public and the issue uses
+# the workflow's own token. Run by hand from the Actions tab to try it.
+name: quiet outlets
+on:
+  schedule:
+    - cron: "17 6 * * 1"   # Mondays 06:17 UTC
+  workflow_dispatch:
+permissions:
+  contents: write
+  issues: write
+jobs:
+  quiet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Snapshot the sources
+        run: scripts/quiet.py snapshot
+      - name: Compare with the previous weeks
+        id: report
+        run: |
+          scripts/quiet.py report | tee /tmp/quiet.txt
+          echo "new=$(tail -n 1 /tmp/quiet.txt | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+      - name: Commit the snapshot and the report
+        run: |
+          git config user.name "headlinesearch bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet || git commit -q -m "Weekly sources snapshot: $(head -n 1 data/quiet/report.md)"
+          git push
+      - name: Open an issue if something went quiet
+        if: steps.report.outputs.new != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --title "Outlets quiet in GDELT. $(head -n 1 data/quiet/report.md | sed 's/\.$//')" --body-file data/quiet/report.md

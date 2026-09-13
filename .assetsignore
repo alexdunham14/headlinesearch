@@ -9,3 +9,4 @@ server
 worker.js
 README.md
 wrangler.jsonc
+data

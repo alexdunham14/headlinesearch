@@ -1,0 +1,10 @@
+[Unit]
+Description=Collect post titles from the blogging platforms that publish their own lists (Substack, Medium)
+After=clickhouse-server.service
+[Service]
+Type=oneshot
+User=headlines
+EnvironmentFile=/var/lib/headlines/collect.env
+WorkingDirectory=/opt/headlinesearch
+ExecStart=/opt/headlinesearch/scripts/blogs.py run
+Nice=10

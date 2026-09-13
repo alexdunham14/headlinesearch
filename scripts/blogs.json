@@ -1,0 +1,53 @@
+{
+  "_note": "scripts/blogs.py reads this. One entry per platform. rate is requests a second across every thread; workers the requests in flight. A platform with enabled false is skipped by `run`. robots: ignore fetches without the robots.txt check, on Alex's decision, with the reason in the note.",
+  "substack": {
+    "enabled": true,
+    "index": "https://substack.com/sitemap.xml",
+    "rate": 2,
+    "workers": 4,
+    "first_run_days": 1,
+    "pages_per_site": 4,
+    "custom_every_hours": 3,
+    "leaderboards_every_days": 7,
+    "note": "The platform's sitemap index lists every publication on a substack.com subdomain with the time of its last post; the ones on their own domain come from the category leaderboards (weekly sweep at leaderboard_rate a second; a 429 from substack.com halts it and the rest is done next hour) and are polled through their sitemap's ETag every custom_every_hours. first_run_days: on the first run, only publications that posted within this many days are read; the rest are recorded for the history walk. pages_per_site caps how far an hourly run pages back for one publication (50 a page). robots.txt (one file for every subdomain) allows the sitemaps and the archive API; the API terms (substack.com/api-tos, 2026-01-08) allow discovery and analytics over public publications and forbid reselling the data as a dataset; the general terms of service have a clause against crawling or scraping any part of Substack, noted for Alex on 2026-09-13. A 429 from a publication halves the pace for the rest of the run; after twenty the rest of the queue waits for next hour.",
+    "leaderboard_rate": 0.5
+  },
+  "medium": {
+    "enabled": true,
+    "index": "https://medium.com/sitemap/sitemap.xml",
+    "every_hours": 6,
+    "days": 7,
+    "rate": 1,
+    "note": "One sitemap file per day of every post, listed in robots.txt; the file for a day appears the next morning and is touched again for a day or two, so the last `days` days' files are re-read when the index says they changed. Titles are the URL slugs. robots.txt allows the sitemaps to unnamed bots (it names the AI crawlers it turns away); the terms of service (read 2026-09-13 through the Wayback Machine, since policy.medium.com answers 403 to curl) have no clause on automated reading; the License file robots.txt points to could not be read (blocked)."
+  },
+  "wordpress": {
+    "enabled": false,
+    "api": "https://public-api.wordpress.com/rest/v1.1",
+    "rate": 1,
+    "days": 7,
+    "pages_per_tag": 5,
+    "tags": [
+      "politics",
+      "economics",
+      "economy",
+      "technology",
+      "science",
+      "history",
+      "philosophy",
+      "climate",
+      "energy",
+      "health",
+      "education",
+      "housing",
+      "immigration",
+      "elections",
+      "foreign-policy",
+      "artificial-intelligence",
+      "programming",
+      "mathematics",
+      "physics",
+      "books"
+    ],
+    "note": "Off, pending Alex. The public REST API needs no key; read/tags/TAG/posts gives 40 a page paged back by date; Automattic's API terms (developer.wordpress.com, 2025-10-01) invite apps, ask for reasonable refresh intervals and no excessive calls, and put the API under CC0. But robots.txt on public-api.wordpress.com is `User-agent: * Disallow: /`, so the collector's robots check refuses every fetch. To collect: set enabled true and \"robots\": \"ignore\" here, with the reason. Much of the politics tag stream is auto-reposting blogs; the tag list is a first guess."
+  }
+}

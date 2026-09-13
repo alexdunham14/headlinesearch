@@ -83,6 +83,7 @@ systemctl restart clickhouse-server
 sleep 3
 clickhouse-client --multiquery < scripts/schema.sql
 clickhouse-client --multiquery < scripts/collect_schema.sql
+clickhouse-client --multiquery < scripts/blogs_schema.sql
 
 # 5. The tunnel: cloudflared as its own user, the token in a root-only env file.
 if [ -n "$CF_TUNNEL_TOKEN" ]; then
@@ -127,7 +128,12 @@ ENV
 chown headlines:headlines /var/lib/headlines/collect.env
 umask 022
 install -m 644 server/collect.service server/collect.timer /etc/systemd/system/
+# The blog collector (scripts/blogs.py): the same user and env, its own
+# database (blogs), every hour.
+install -m 644 server/blogs.service server/blogs.timer /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now collect.timer
+systemctl enable --now blogs.timer
 echo "done. next ingest: $(systemctl list-timers ingest.timer --no-legend | awk '{print $1, $2, $3}')"
 echo "next collect: $(systemctl list-timers collect.timer --no-legend | awk '{print $1, $2, $3}')"
+echo "next blogs: $(systemctl list-timers blogs.timer --no-legend | awk '{print $1, $2, $3}')"

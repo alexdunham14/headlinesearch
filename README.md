@@ -365,6 +365,87 @@ else). Nothing on the site reads it yet. It never fetches an article page.
   six files and the majors do not, because every one of them names CCBot in
   robots.txt or disallows all bots. It is not a route to the lost outlets.
 
+## The blog collector (a third dataset, not on the site)
+
+Much of the deep work people publish is on blogs, and for two platforms no
+writer list has to be kept because the platform publishes one.
+`scripts/blogs.py` reads those lists every hour from the database server
+(`server/blogs.timer`) and keeps every post title it has not seen, in a
+database of its own (`blogs`, tables in `scripts/blogs_schema.sql`; the
+same ClickHouse user as the news collector, which can reach `collect` and
+`blogs` and nothing else). Nothing on the site reads it. Every row carries
+the platform, the platform's own name for the publication, the endpoint it
+came from and when it was first seen, so the rows can always be told from
+GDELT's and from the news collector's. The root repo's
+`ideas/creator-agenda.md` has the survey behind it.
+
+- **Substack.** `substack.com/sitemap.xml` (listed in its robots.txt)
+  indexes every publication on a substack.com subdomain, about 240,000,
+  each with the time of its last post: some 500 post in any hour, 15,000
+  in a day. The hourly run reads the four index files (a 304 when nothing
+  changed) and, for each publication whose time moved, its public archive
+  API (`/api/v1/archive?sort=new`, the JSON its own archive page uses, not
+  disallowed by robots.txt): title, subtitle, time, type (newsletter or
+  podcast), audience (free or paid), language, author, word count,
+  reactions, comments, restacks and tags, 23 posts on the first page and
+  50 a page after. Publications on their own domain, which are the biggest
+  (Slow Boring, Astral Codex Ten, The Bulwark, The Free Press), are not in
+  the index and their subdomain merely redirects; the category
+  leaderboards (`/api/v1/category/public/ID/all`, 33 categories of about
+  22 pages) list them with their domain, so a weekly sweep adds them and
+  they are polled through their own sitemap's ETag every few hours. The
+  first run reads only publications that posted in the last day
+  (`first_run_days`); the rest are recorded for the history walk.
+- **Medium.** `medium.com/sitemap/sitemap.xml` indexes one file per day of
+  every post, back to 2012, about 10,000 a day; the file for a day appears
+  the next morning and is touched again for a day or two, so the last
+  week's files are re-read when the index says they changed (every six
+  hours; the index answers 304). The only title in a file is the URL slug,
+  lower case with the punctuation gone and non-Latin scripts
+  percent-encoded, so Medium titles are stored degraded, marked
+  `kind = slug`, and the post's time is the day. A `lang` guess (`en` or
+  empty) comes from the title's function words; Substack states its own.
+- **WordPress.com**, off pending Alex. The public REST API needs no key and
+  `read/tags/TAG/posts` gives a tag's stream 40 a page, paged back by date:
+  slices, not a firehose, and much of the politics stream is auto-reposting
+  blogs. Automattic's API terms invite apps, but `robots.txt` on the API
+  host turns every bot away from everything, so the collector's robots
+  check refuses it until `scripts/blogs.json` says `robots: ignore` for it.
+- **Manners.** As the news collector: a truthful User-Agent naming the
+  site; robots.txt read with it and obeyed (the platform serves one file
+  for every Substack subdomain, so it is read once a run from substack.com
+  and applied to all of them; a custom domain's own file is read and its
+  answer kept for a day); conditional requests wherever the platform
+  answers 304; two requests a second to Substack across every thread, one
+  a second to Medium; a 429 halves the pace for the rest of the run and
+  twenty of them end it; no retries inside a run; nothing that gets round
+  a wall (an invitation-only publication answers 403 and is marked
+  `blocked`). Never a post page.
+- **Terms, as read on 2026-09-13.** Substack's API terms
+  (`substack.com/api-tos`) allow discovery and analytics over public
+  publications and forbid reselling the data as a dataset; its general
+  terms have a clause against crawling or scraping any part of Substack,
+  which sits oddly beside a robots.txt that invites crawlers, and is
+  Alex's to weigh. Medium's terms have no clause on automated reading;
+  the licence file its robots.txt points to could not be read (blocked).
+- **Edits.** The archive API and the sitemap show a post's current title in
+  place, so the unit stored is (platform, site, URL, kind, title) with a
+  version, exactly as in `collect.headlines`: version 1 is the title as
+  first seen, the rest are the edits, timed by `seen`.
+- **History.** `scripts/blogs.py history substack` walks publications'
+  archives back to a date, most recently active first, 50 posts a request,
+  resumable through `blogs.history`; about 190,000 publications posted in
+  the last year, so a full walk is days at two requests a second, and it
+  has not been started. `scripts/blogs.py history medium --from
+  2019-01-01` reads the daily files, about 2,800 for 2019 on at one a
+  second, some 27 million rows, resumable through `blogs.files`; not
+  started either. Both are for Alex to start, by hand under nohup on the
+  box, once the terms and the disk (13 GB free on 2026-09-13) are settled.
+- **Checking on it.** `blogs.fetches` has a row per request with the label;
+  `blogs.sites` the state of every publication; `journalctl -u blogs` each
+  run's one-line summary per platform. `scripts/blogs.py site SUBDOMAIN`
+  prints one publication's newest posts.
+
 ## Running it locally
 
 ```

@@ -6,8 +6,9 @@
      pass per-query settings, the constraints below cap them), a few seconds
      of CPU per query, a quota per hour.
      ingest: what scripts/ingest.py uses, from the same box only.
-     collect: what scripts/collect.py uses, from the same box only; it can
-     reach the `collect` database and nothing else (scripts/collect_schema.sql).
+     collect: what scripts/collect.py and scripts/blogs.py use, from the same
+     box only; it can reach the `collect` and `blogs` databases and nothing
+     else (scripts/collect_schema.sql, scripts/blogs_schema.sql).
      default: the admin, local only, password in CH_ADMIN_PASSWORD (setup.sh
      writes it into root's clickhouse-client config). -->
 <clickhouse>
@@ -68,6 +69,7 @@
       <quota>default</quota>
       <grants>
         <query>GRANT SELECT, INSERT, TRUNCATE ON collect.*</query>
+        <query>GRANT SELECT, INSERT, TRUNCATE ON blogs.*</query>
       </grants>
     </collect>
     <default>

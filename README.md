@@ -422,7 +422,8 @@ GDELT's and from the news collector's. The root repo's
   at two a second to one in eight), one a second to Medium; a 429 halves the pace (several within ten seconds
   count once, since four workers can meet the same limit together; the
   floor is a request every eight seconds), which comes back a step for
-  every five minutes without another, and twenty of them end the run;
+  every five minutes without another, and twenty of them within one
+  batch of 200 publications end the run, the rest waiting for next hour;
   the journal shows each change; no retries inside a run; nothing that
   gets round
   a wall (an invitation-only publication answers 403 and is marked

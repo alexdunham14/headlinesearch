@@ -46,7 +46,8 @@ of them; a custom domain's own file is read and its answer kept for a day);
 conditional requests wherever the platform answers 304; a global rate
 limit per platform (scripts/blogs.json, half a request a second for
 Substack, which answers 429 to about one request in twenty-five at one a
-second)
+second; twenty 429s within one batch of 200 end the run, the rest of the
+queue waiting for next hour)
 with a few requests in flight; no retries inside a run; nothing that gets
 round a wall: an invitation-only publication answers 403 and is marked
 blocked and left alone.
@@ -589,7 +590,8 @@ def run_substack(cfg, dry_run=False, limit=None):
         if label == "http 429":
             # The platform asked for less: slow down, leave the row as it was
             # (so the publication is queued again next hour), and after
-            # twenty of them give up on the rest of the queue for this run.
+            # twenty of them within one batch (a tenth of it) give up on the
+            # rest of the queue for this run.
             limiter.slow()
             n429[0] += 1
             if n429[0] >= 20:
@@ -643,6 +645,7 @@ def run_substack(cfg, dry_run=False, limit=None):
         total["new"] += sum(new_by.values())
         total["changed"] += sum(changed_by.values())
         total["done"] += len(batch)
+        n429[0] = 0     # the twenty-a-batch rule starts over
         if total["done"] < len(queue):
             print(f"  {total['done']}/{len(queue)} publications, items {total['items']}, new {total['new']}, "
                   f"changed {total['changed']}, pace {1 / limiter.interval:.2g}/s", flush=True)

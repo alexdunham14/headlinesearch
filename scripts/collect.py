@@ -20,7 +20,10 @@ sitemap; Atom counts as rss). scripts/discover.py finds candidates.
 
 Manners: a truthful User-Agent naming the site; robots.txt read with it
 and obeyed (a 5xx or an unreachable robots.txt means no fetch this run,
-per RFC 9309); conditional requests (ETag, Last-Modified) so an unchanged
+per RFC 9309), except for the entries feeds.json marks "robots": "ignore",
+which is Alex's decision per outlet, with the reason in the entry (Reuters
+and the Journal, 2026-09-13: public headline lists whose robots.txt turns
+all unnamed bots away); conditional requests (ETag, Last-Modified) so an unchanged
 feed costs a 304; one request in flight per host; no retries inside a run.
 Nothing here gets round a bot wall: a challenge page, a 401 or a 403 is
 logged as such and the feed is tried again next hour.
@@ -461,7 +464,9 @@ def load_feeds(path=FEEDS_PATH):
 
 def one_feed(feed, cond, robots):
     etag, lm = cond.get(feed["url"], ("", ""))
-    label, fmt, items, f = read_feed(feed["url"], etag, lm, robots)
+    # "robots": "ignore" in feeds.json: fetched without the robots.txt check,
+    # on Alex's decision for that outlet, recorded in the entry's note.
+    label, fmt, items, f = read_feed(feed["url"], etag, lm, None if feed.get("robots") == "ignore" else robots)
     kind = "sitemap" if fmt == "sitemap" else "feed"
     return feed, label, kind, items, f
 

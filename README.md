@@ -300,18 +300,20 @@ else). Nothing on the site reads it yet. It never fetches an article page.
 - **What it reads.** `scripts/feeds.json`: one entry per feed URL, with the
   site as GDELT names it, the kind (`rss`, which includes Atom, or `sitemap`)
   and a section label; entries with `enabled: false` are kept for the
-  record with the reason (Reuters and the Journal publish open sitemaps but
-  their robots.txt turns unnamed bots away from everything, with a notice
-  that automated collection needs written consent, so they are not fetched
-  until Alex decides; the Post's feed host answers 503 to everyone; AP is
-  behind a Cloudflare challenge). Four sites GDELT still has (the Guardian,
+  record with the reason (the Post's feed host answers 503 to everyone; AP
+  is behind a Cloudflare challenge). An entry marked `robots: ignore` is
+  fetched without the robots.txt check, on Alex's decision for that outlet:
+  Reuters and the Journal publish open news sitemaps but their robots.txt
+  turns unnamed bots away from everything, with a notice that automated
+  collection needs written consent, and Alex chose on 2026-09-13 to collect
+  them. Four sites GDELT still has (the Guardian,
   the BBC, CNN, Fox) are in the list as controls, so what a sitemap yields
   can be measured against what GDELT saw of the same site.
   `scripts/discover.py` finds candidates for a list of sites: robots.txt's
   `Sitemap:` lines, the home page's advertised feeds, and the usual paths,
   each fetched once and classified.
 - **Manners.** A truthful User-Agent naming the site; robots.txt fetched
-  with it and obeyed, and per RFC 9309 a robots.txt that answers 5xx or not
+  with it and obeyed (except as above), and per RFC 9309 a robots.txt that answers 5xx or not
   at all means no fetch that run; conditional requests, so an unchanged
   feed costs a 304; one request in flight per host; nothing that gets round
   a wall, so a challenge page, a 401 or a 403 is logged and the feed is

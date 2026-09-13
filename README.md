@@ -330,7 +330,19 @@ else). Nothing on the site reads it yet. It never fetches an article page.
   label (`ok`, `304`, `blocked`, `robots`, `html`, `error`, `parse`,
   `no-titles`, `http NNN`), the item count and the number of new rows.
   `journalctl -u collect` has each run's one-line summary and its list of
-  feeds that did not answer `ok` or `304`.
+  feeds that did not answer `ok` or `304`. Sites on the BLOX platform
+  (TownNews: most Lee Enterprises and CNHI dailies) are fetched one at a
+  time with a pause, since the platform rate-limits an address across all
+  its papers.
+- **The lost years, from the Wayback Machine.** `scripts/backfill.py` walks
+  the CDX index for a feed's captures (at most one an hour; the NYT World
+  feed has about 750 a year for 2022 to 2024), fetches each as archived
+  (`id_`, no rewriting) and runs it through the same parser and insert with
+  `seen` set to the capture time, so the section's headlines for those
+  years land in `collect.headlines` with the same meaning of version and
+  edit. `collect.backfill` records each capture done, so a run can be
+  stopped and resumed; one request a second to web.archive.org. Run by
+  hand under nohup on the box, feed by feed.
 - **Common Crawl, looked at and set aside** (`scripts/ccsample.py` streams a
   few of CC-NEWS's WARC files and keeps URL, time and title). The news crawl
   is about 330,000 pages a day from 12,000 sites, most of them not

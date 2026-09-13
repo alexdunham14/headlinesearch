@@ -284,6 +284,60 @@ matches) from a full scan to 1.3% of granules. Earlier, on 30 days: 54 bytes
 a row on disk including the trigram index, so about 26 GB of data for the
 corpus; the token index adds about 8 bytes a row.
 
+## The collector (a second dataset, not yet on the site)
+
+GDELT has lost the outlets that put up bot walls: the New York Times
+newsroom, the Washington Post, Reuters, AP, the Wall Street Journal, and
+some five hundred more between 2022 and 2026 (the root repo's
+`sessions/2026-09-12-gdelt-source-coverage.md` has the list and the dates).
+Their article pages are walled; their RSS feeds and Google News sitemaps
+often are not, since those exist for crawlers. `scripts/collect.py` reads
+them every hour from the database server (`server/collect.timer`) and keeps
+every headline it has not seen, in a database of its own (`collect`, tables
+in `scripts/collect_schema.sql`, a ClickHouse user that can reach nothing
+else). Nothing on the site reads it yet. It never fetches an article page.
+
+- **What it reads.** `scripts/feeds.json`: one entry per feed URL, with the
+  site as GDELT names it, the kind (`rss`, which includes Atom, or `sitemap`)
+  and a section label; entries with `enabled: false` are kept for the
+  record with the reason (Reuters and the Journal publish open sitemaps but
+  their robots.txt turns unnamed bots away from everything, with a notice
+  that automated collection needs written consent, so they are not fetched
+  until Alex decides; the Post's feed host answers 503 to everyone; AP is
+  behind a Cloudflare challenge). Four sites GDELT still has (the Guardian,
+  the BBC, CNN, Fox) are in the list as controls, so what a sitemap yields
+  can be measured against what GDELT saw of the same site.
+  `scripts/discover.py` finds candidates for a list of sites: robots.txt's
+  `Sitemap:` lines, the home page's advertised feeds, and the usual paths,
+  each fetched once and classified.
+- **Manners.** A truthful User-Agent naming the site; robots.txt fetched
+  with it and obeyed, and per RFC 9309 a robots.txt that answers 5xx or not
+  at all means no fetch that run; conditional requests, so an unchanged
+  feed costs a 304; one request in flight per host; nothing that gets round
+  a wall, so a challenge page, a 401 or a 403 is logged and the feed is
+  tried again next hour.
+- **Headline edits.** A feed and a sitemap both show a URL's current title
+  in place; neither is a changelog. The collector stores (site, URL, kind,
+  title): the first title seen for a URL under a kind is version 1, and a
+  later run that finds the same URL with a different title stores it as
+  version 2 with the time. Version 1 rows are the headline as first
+  published, the nearest thing to what GDELT would have crawled; the rest
+  are the edits. The RSS title and the sitemap's `news:title` of one story
+  are often different strings (the sitemap's is nearer the page's `<title>`,
+  which is what GDELT keeps), so versions are counted per kind and both
+  are kept.
+- **Checking on it.** `collect.fetches` has a row per feed per run with the
+  label (`ok`, `304`, `blocked`, `robots`, `html`, `error`, `parse`,
+  `no-titles`, `http NNN`), the item count and the number of new rows.
+  `journalctl -u collect` has each run's one-line summary and its list of
+  feeds that did not answer `ok` or `304`.
+- **Common Crawl, looked at and set aside** (`scripts/ccsample.py` streams a
+  few of CC-NEWS's WARC files and keeps URL, time and title). The news crawl
+  is about 330,000 pages a day from 12,000 sites, most of them not
+  English-language news; of the 300 lost outlets, 58 appear in a sample of
+  six files and the majors do not, because every one of them names CCBot in
+  robots.txt or disallows all bots. It is not a route to the lost outlets.
+
 ## Running it locally
 
 ```

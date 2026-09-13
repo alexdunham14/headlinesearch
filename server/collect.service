@@ -1,0 +1,10 @@
+[Unit]
+Description=Collect headlines from the feeds and news sitemaps of outlets GDELT has lost
+After=clickhouse-server.service
+[Service]
+Type=oneshot
+User=headlines
+EnvironmentFile=/var/lib/headlines/collect.env
+WorkingDirectory=/opt/headlinesearch
+ExecStart=/opt/headlinesearch/scripts/collect.py
+Nice=10

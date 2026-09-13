@@ -1,7 +1,7 @@
 #!/bin/sh
 # Turn a fresh Debian/Ubuntu box into the Headline Search database server.
 # Run as root from a checkout of this repo:
-#   CH_SEARCH_PASSWORD=... CH_INGEST_PASSWORD=... R2_ACCOUNT_ID=... \
+#   CH_SEARCH_PASSWORD=... CH_INGEST_PASSWORD=... CH_COLLECT_PASSWORD=... R2_ACCOUNT_ID=... \
 #   R2_ACCESS_KEY_ID=... R2_SECRET_ACCESS_KEY=... CF_TUNNEL_TOKEN=... ./server/setup.sh
 # CF_TUNNEL_TOKEN comes from server/tunnel.sh. With it the Worker reaches
 # ClickHouse through a Cloudflare Tunnel: cloudflared runs here, ClickHouse
@@ -11,7 +11,7 @@
 # Idempotent; re-run after editing anything in server/.
 set -eu
 cd "$(dirname "$0")/.."
-: "${CH_SEARCH_PASSWORD:?}" "${CH_INGEST_PASSWORD:?}" "${R2_ACCOUNT_ID:?}" "${R2_ACCESS_KEY_ID:?}" "${R2_SECRET_ACCESS_KEY:?}"
+: "${CH_SEARCH_PASSWORD:?}" "${CH_INGEST_PASSWORD:?}" "${CH_COLLECT_PASSWORD:?}" "${R2_ACCOUNT_ID:?}" "${R2_ACCESS_KEY_ID:?}" "${R2_SECRET_ACCESS_KEY:?}"
 CH_ADMIN_PASSWORD="${CH_ADMIN_PASSWORD:-$(head -c 24 /dev/urandom | base64 | tr -d '/+=')}"
 CF_TUNNEL_TOKEN="${CF_TUNNEL_TOKEN:-}"
 
@@ -50,6 +50,7 @@ umask 077
 cat > /etc/clickhouse-server/headlinesearch.env <<ENV
 CH_SEARCH_PASSWORD=$CH_SEARCH_PASSWORD
 CH_INGEST_PASSWORD=$CH_INGEST_PASSWORD
+CH_COLLECT_PASSWORD=$CH_COLLECT_PASSWORD
 CH_ADMIN_PASSWORD=$CH_ADMIN_PASSWORD
 ENV
 chown clickhouse:clickhouse /etc/clickhouse-server/headlinesearch.env
@@ -81,6 +82,7 @@ systemctl enable --now clickhouse-server
 systemctl restart clickhouse-server
 sleep 3
 clickhouse-client --multiquery < scripts/schema.sql
+clickhouse-client --multiquery < scripts/collect_schema.sql
 
 # 5. The tunnel: cloudflared as its own user, the token in a root-only env file.
 if [ -n "$CF_TUNNEL_TOKEN" ]; then
@@ -113,4 +115,19 @@ umask 022
 install -m 644 server/ingest.service server/ingest.timer /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now ingest.timer
+
+# 7. The collector (scripts/collect.py): the same user, its own ClickHouse
+# user and database, every hour.
+umask 077
+cat > /var/lib/headlines/collect.env <<ENV
+CH_URL=http://127.0.0.1:8123
+CH_USER=collect
+CH_PASSWORD=$CH_COLLECT_PASSWORD
+ENV
+chown headlines:headlines /var/lib/headlines/collect.env
+umask 022
+install -m 644 server/collect.service server/collect.timer /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now collect.timer
 echo "done. next ingest: $(systemctl list-timers ingest.timer --no-legend | awk '{print $1, $2, $3}')"
+echo "next collect: $(systemctl list-timers collect.timer --no-legend | awk '{print $1, $2, $3}')"

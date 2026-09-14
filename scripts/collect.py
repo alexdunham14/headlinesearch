@@ -84,8 +84,20 @@ WS_RE = re.compile(r"\s+")
 # Query parameters that mark where a click came from, not which page it is.
 TRACKING_RE = re.compile(r"^(utm_.*|fbclid|gclid|ocid|cmpid|cmp|ns_.*|mc_.*|ito|ftag|src|ref|sref|rss|output|s|ss|smid|smtyp|partner|icid|ICID|itm_.*|_gl|taid|guccounter|guce_referrer.*|syn-.*)$")
 # One TLS context for every fetch: without it http.client builds a new one
-# per connection, reading the CA bundle each time.
-OPENER = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ssl.create_default_context()))
+# per connection, reading the CA bundle each time. It must look exactly like
+# the one http.client builds when given none (ALPN "http/1.1" and TLS 1.3
+# post-handshake auth): a bare context sends neither extension, the TLS
+# fingerprint changes, and Cloudflare-fronted outlets answer a challenge
+# (2026-09-13, seven outlets lost for a night).
+def _tls_context():
+    ctx = ssl.create_default_context()
+    ctx.set_alpn_protocols(["http/1.1"])
+    if ctx.post_handshake_auth is not None:
+        ctx.post_handshake_auth = True
+    return ctx
+
+
+OPENER = urllib.request.build_opener(urllib.request.HTTPSHandler(context=_tls_context()))
 
 CHALLENGE_RE = re.compile(r"Just a moment|Please enable JS|challenge-platform|_cf_chl|cf-browser-verification|captcha-delivery|DataDome|Access Denied|Request unsuccessful|Incapsula|perimeterx|px-captcha|/_fs-ch-", re.I)
 

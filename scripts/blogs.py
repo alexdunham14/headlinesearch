@@ -463,8 +463,11 @@ def archive_posts(base_url, posts, site, seen, source):
             "subtitle": clean_title(p.get("subtitle") or "")[:500], "type": (p.get("type") or "")[:40],
             "audience": (p.get("audience") or "")[:40], "lang": (p.get("language") or "")[:10],
             "author": clean_title((bylines[0].get("name") if bylines and isinstance(bylines[0], dict) else "") or "")[:200],
-            "wordcount": int(p.get("wordcount") or 0), "reactions": int(sum(v for v in reactions.values() if isinstance(v, int))) if isinstance(reactions, dict) else 0,
-            "comments": int(p.get("comment_count") or 0), "restacks": int(p.get("restacks") or 0),
+            # The columns are unsigned; Substack has answered a negative
+            # reactions total (2026-09-14, one post in 700,000, a lost batch).
+            "wordcount": max(0, int(p.get("wordcount") or 0)),
+            "reactions": max(0, int(sum(v for v in reactions.values() if isinstance(v, int)))) if isinstance(reactions, dict) else 0,
+            "comments": max(0, int(p.get("comment_count") or 0)), "restacks": max(0, int(p.get("restacks") or 0)),
             "post_id": str(p.get("id") or ""), "tags": [t.get("name", "") for t in (p.get("postTags") or []) if isinstance(t, dict)][:20],
         })
     return rows
@@ -1075,7 +1078,7 @@ def run_wordpress(cfg, dry_run=False, limit=None):
                 rows.append({"ts": fmt(ts), "platform": "wordpress", "site": host_of(p.get("site_URL") or url_), "domain": host_of(url_),
                              "url": url_, "title": title, "seen": fmt(seen), "kind": "api", "source": source, "subtitle": "",
                              "type": "", "audience": "", "lang": "", "author": clean_title(author.get("name") or "")[:200] if isinstance(author, dict) else "",
-                             "wordcount": 0, "reactions": int(p.get("like_count") or 0), "comments": int(p.get("comment_count") or 0),
+                             "wordcount": 0, "reactions": max(0, int(p.get("like_count") or 0)), "comments": max(0, int(p.get("comment_count") or 0)),
                              "restacks": 0, "post_id": str(p.get("ID") or ""), "tags": list((p.get("tags") or {}).keys())[:20]})
             if oldest is None or oldest <= floor:
                 break

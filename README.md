@@ -97,11 +97,18 @@ Three pieces, in three places.
    ordered by source (`scripts/schema.sql` explains them); beside it
    `sources`, a row per site with its article count and first and last
    headline, kept by a materialized view on every insert (86,737 sites on
-   2026-09-12). A read-only `search` user with a quota, reachable only
-   from the Worker. `server/setup.sh` turns a fresh Debian box into this.
+   2026-09-12). A read-only `search` user, reachable only from the Worker,
+   with eight queries at once and an hourly quota (20,000 queries, 7,200 s
+   of query time; raised on 2026-09-14 from four and 1,800 s after a shared
+   compare link on 2026-09-12 brought 1,772 queries in an hour, 390 of them
+   refused at the old cap). `server/setup.sh` turns a fresh Debian box
+   into this.
 3. **The site** on Cloudflare Workers: `index.html`, `styles.css`, `app.js`
    as static assets, `compare.html` and `compare.js` for compare mode,
-   `sources.html` and `sources.js` for the sources page, and `worker.js`
+   `sources.html` and `sources.js` for the sources page, `robots.txt`
+   (since 2026-09-14: crawlers may read the site but not `/?domain=`, the
+   sources page's link for each site, which Googlebot was rendering site by
+   site, hundreds of uncached queries a day), and `worker.js`
    for `/api/search`, `/api/count`, `/api/totals`, `/api/sources` and
    `/api/stats`, which validate the parameters, build a parameterised
    ClickHouse query, cache the answer at the edge (an hour for searches and

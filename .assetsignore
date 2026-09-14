@@ -10,3 +10,4 @@ worker.js
 README.md
 wrangler.jsonc
 data
+private

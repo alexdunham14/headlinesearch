@@ -4,7 +4,10 @@
 
      search: what the Cloudflare Worker uses. Read-only (readonly=2 lets it
      pass per-query settings, the constraints below cap them), a few seconds
-     of CPU per query, a quota per hour.
+     of CPU per query, a quota per hour. Eight queries at once and 7,200 s
+     of query time an hour since 2026-09-14: a shared compare link on
+     2026-09-12 brought 1,772 queries in an hour, 390 refused at the old cap
+     of four, and 1,768 s of the old 1,800 s hourly allowance used up.
      ingest: what scripts/ingest.py uses, from the same box only.
      collect: what scripts/collect.py and scripts/blogs.py use, from the same
      box only; it can reach the `collect` and `blogs` databases and nothing
@@ -21,7 +24,7 @@
       <max_result_rows>10000</max_result_rows>
       <max_result_bytes>20000000</max_result_bytes>
       <max_threads>4</max_threads>
-      <max_concurrent_queries_for_user>4</max_concurrent_queries_for_user>
+      <max_concurrent_queries_for_user>8</max_concurrent_queries_for_user>
       <constraints>
         <max_execution_time><max>20</max></max_execution_time>
         <max_memory_usage><max>1000000000</max></max_memory_usage>
@@ -36,8 +39,8 @@
     <search>
       <interval>
         <duration>3600</duration>
-        <queries>3000</queries>
-        <execution_time>1800</execution_time>
+        <queries>20000</queries>
+        <execution_time>7200</execution_time>
       </interval>
     </search>
   </quotas>

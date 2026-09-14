@@ -1,25 +1,25 @@
 {
- "day": "2026-09-13",
+ "day": "2026-09-14",
  "sites": {
   "allkpop.com": {
    "why": "dark",
-   "baseline": 152,
+   "baseline": 126,
    "recent": 0,
    "last": "2026-08-23",
    "rows": 62192,
    "since": "2026-09-13"
   },
   "athens-times.com": {
-   "why": "dark",
-   "baseline": 410,
-   "recent": 0,
-   "last": "2026-08-29",
-   "rows": 106129,
+   "why": "thinning",
+   "baseline": 290,
+   "recent": 4,
+   "last": "2026-09-13",
+   "rows": 106130,
    "since": "2026-09-13"
   },
   "bangkokpost.com": {
    "why": "dark",
-   "baseline": 195,
+   "baseline": 184,
    "recent": 0,
    "last": "2026-08-25",
    "rows": 151070,
@@ -27,7 +27,7 @@
   },
   "bchomez.com": {
    "why": "dark",
-   "baseline": 320,
+   "baseline": 200,
    "recent": 0,
    "last": "2026-07-24",
    "rows": 35967,
@@ -35,23 +35,23 @@
   },
   "benzinga.com": {
    "why": "dark",
-   "baseline": 481,
+   "baseline": 386,
    "recent": 0,
    "last": "2026-08-06",
    "rows": 342285,
    "since": "2026-09-13"
   },
-  "bestmediainfo.com": {
-   "why": "dark",
-   "baseline": 102,
-   "recent": 0,
-   "last": "2026-08-21",
-   "rows": 24657,
-   "since": "2026-09-13"
+  "boerse-social.com": {
+   "why": "thinning",
+   "baseline": 846,
+   "recent": 163,
+   "last": "2026-09-12",
+   "rows": 7315,
+   "since": "2026-09-14"
   },
   "channelstv.com": {
    "why": "dark",
-   "baseline": 136,
+   "baseline": 118,
    "recent": 0,
    "last": "2026-08-04",
    "rows": 88519,
@@ -59,31 +59,47 @@
   },
   "chelmsfordweeklynews.co.uk": {
    "why": "dark",
-   "baseline": 274,
+   "baseline": 219,
    "recent": 0,
    "last": "2026-08-14",
    "rows": 115042,
    "since": "2026-09-13"
   },
-  "crowdfundinsider.com": {
-   "why": "dark",
-   "baseline": 106,
+  "comingsoon.net": {
+   "why": "thinning",
+   "baseline": 348,
    "recent": 0,
-   "last": "2026-08-27",
-   "rows": 87115,
-   "since": "2026-09-13"
+   "last": "2026-09-03",
+   "rows": 58572,
+   "since": "2026-09-14"
   },
-  "eenews.net": {
-   "why": "dark",
-   "baseline": 108,
-   "recent": 0,
-   "last": "2026-08-28",
-   "rows": 41827,
-   "since": "2026-09-13"
+  "dailymirror.lk": {
+   "why": "thinning",
+   "baseline": 211,
+   "recent": 1,
+   "last": "2026-09-08",
+   "rows": 59271,
+   "since": "2026-09-14"
+  },
+  "financialcontent.com": {
+   "why": "thinning",
+   "baseline": 440,
+   "recent": 61,
+   "last": "2026-09-13",
+   "rows": 220404,
+   "since": "2026-09-14"
+  },
+  "forbes.com": {
+   "why": "thinning",
+   "baseline": 1312,
+   "recent": 133,
+   "last": "2026-09-11",
+   "rows": 625561,
+   "since": "2026-09-14"
   },
   "gananoquereporter.com": {
    "why": "dark",
-   "baseline": 146,
+   "baseline": 130,
    "recent": 0,
    "last": "2026-08-29",
    "rows": 40328,
@@ -91,7 +107,7 @@
   },
   "geeky-gadgets.com": {
    "why": "dark",
-   "baseline": 150,
+   "baseline": 130,
    "recent": 0,
    "last": "2026-08-25",
    "rows": 48625,
@@ -99,7 +115,7 @@
   },
   "indianexpress.com": {
    "why": "dark",
-   "baseline": 892,
+   "baseline": 663,
    "recent": 0,
    "last": "2026-07-31",
    "rows": 484102,
@@ -107,31 +123,39 @@
   },
   "itnewsonline.com": {
    "why": "dark",
-   "baseline": 259,
+   "baseline": 213,
    "recent": 0,
    "last": "2026-08-10",
    "rows": 131433,
    "since": "2026-09-13"
   },
+  "keralakaumudi.com": {
+   "why": "thinning",
+   "baseline": 218,
+   "recent": 0,
+   "last": "2026-09-03",
+   "rows": 6014,
+   "since": "2026-09-14"
+  },
+  "manilatimes.net": {
+   "why": "thinning",
+   "baseline": 3109,
+   "recent": 402,
+   "last": "2026-09-14",
+   "rows": 384695,
+   "since": "2026-09-14"
+  },
   "motorsport.com": {
    "why": "dark",
-   "baseline": 143,
+   "baseline": 126,
    "recent": 0,
    "last": "2026-08-27",
    "rows": 23599,
    "since": "2026-09-13"
   },
-  "mynorthwest.com": {
-   "why": "dark",
-   "baseline": 108,
-   "recent": 0,
-   "last": "2026-07-20",
-   "rows": 220475,
-   "since": "2026-09-13"
-  },
   "nationalaccordnewspaper.com": {
    "why": "dark",
-   "baseline": 148,
+   "baseline": 124,
    "recent": 0,
    "last": "2026-08-16",
    "rows": 54321,
@@ -139,31 +163,31 @@
   },
   "newkerala.com": {
    "why": "dark",
-   "baseline": 1735,
+   "baseline": 1371,
    "recent": 0,
    "last": "2026-08-11",
    "rows": 245547,
    "since": "2026-09-13"
   },
-  "newsghana.com.gh": {
-   "why": "dark",
-   "baseline": 126,
-   "recent": 0,
-   "last": "2026-08-06",
-   "rows": 84231,
-   "since": "2026-09-13"
-  },
   "pembrokeobserver.com": {
    "why": "dark",
-   "baseline": 154,
+   "baseline": 137,
    "recent": 0,
    "last": "2026-08-29",
    "rows": 38995,
    "since": "2026-09-13"
   },
+  "propakistani.pk": {
+   "why": "thinning",
+   "baseline": 274,
+   "recent": 23,
+   "last": "2026-09-08",
+   "rows": 84666,
+   "since": "2026-09-14"
+  },
   "semissourian.com": {
    "why": "dark",
-   "baseline": 160,
+   "baseline": 141,
    "recent": 0,
    "last": "2026-08-30",
    "rows": 16204,
@@ -171,7 +195,7 @@
   },
   "sharenet.co.za": {
    "why": "dark",
-   "baseline": 154,
+   "baseline": 113,
    "recent": 0,
    "last": "2026-08-25",
    "rows": 17881,
@@ -179,23 +203,15 @@
   },
   "stockhouse.com": {
    "why": "dark",
-   "baseline": 294,
+   "baseline": 207,
    "recent": 0,
    "last": "2026-07-28",
    "rows": 12208,
    "since": "2026-09-13"
   },
-  "thecable.ng": {
-   "why": "dark",
-   "baseline": 114,
-   "recent": 0,
-   "last": "2026-08-07",
-   "rows": 102206,
-   "since": "2026-09-13"
-  },
   "theweek.in": {
    "why": "dark",
-   "baseline": 176,
+   "baseline": 155,
    "recent": 0,
    "last": "2026-08-25",
    "rows": 89857,
@@ -203,35 +219,35 @@
   },
   "tribunnews.com": {
    "why": "thinning",
-   "baseline": 342,
-   "recent": 56,
+   "baseline": 311,
+   "recent": 0,
    "last": "2026-09-02",
    "rows": 10202,
    "since": "2026-09-13"
   },
   "tvguide.co.uk": {
    "why": "thinning",
-   "baseline": 5382,
-   "recent": 52,
+   "baseline": 3826,
+   "recent": 26,
    "last": "2026-09-13",
    "rows": 1956746,
    "since": "2026-09-13"
   },
   "unitaid.eu": {
    "why": "dark",
-   "baseline": 2228,
+   "baseline": 1910,
    "recent": 0,
    "last": "2026-08-02",
    "rows": 25148,
    "since": "2026-09-13"
   },
-  "wn.com": {
-   "why": "dark",
-   "baseline": 163,
-   "recent": 0,
-   "last": "2026-07-15",
-   "rows": 399364,
-   "since": "2026-09-13"
+  "upi.com": {
+   "why": "thinning",
+   "baseline": 319,
+   "recent": 32,
+   "last": "2026-09-08",
+   "rows": 102258,
+   "since": "2026-09-14"
   }
  }
 }

@@ -128,30 +128,30 @@ def stage():
     sections = ", ".join(f"'{s}'" for s in BBC_ENGLISH)
     ch(f"""
 INSERT INTO unified.stage (ts, src, platform, domain, url, title)
-SELECT ts, 'feeds', '', domain, url, title FROM (
+SELECT t, 'feeds', '', domain, url, tt FROM (
   SELECT domain, url,
-         argMin(least(ts, seen), (kind != 'sitemap', seen)) AS ts,
+         argMin(least(ts, seen), (kind != 'sitemap', seen)) AS t,
          argMin(seen, (kind != 'sitemap', seen)) AS first_seen,
-         argMin(title, (kind != 'sitemap', seen)) AS title
+         argMin(title, (kind != 'sitemap', seen)) AS tt
   FROM collect.headlines
   WHERE version = 1 AND seen >= {lit(FEEDS_START)}
   GROUP BY domain, url)
-WHERE ts >= {lit(FEEDS_START)} AND ts >= first_seen - INTERVAL {FEED_MAX_LAG_DAYS} DAY
-  AND title != ''
-  AND countMatches(title, '[A-Za-z]') * 2 >= countMatches(title, '\\\\p{{L}}')
+WHERE t >= {lit(FEEDS_START)} AND t >= first_seen - INTERVAL {FEED_MAX_LAG_DAYS} DAY
+  AND tt != ''
+  AND countMatches(tt, '[A-Za-z]') * 2 >= countMatches(tt, '\\\\p{{L}}')
   AND NOT (domain IN ('bbc.com', 'bbc.co.uk') AND extract(url, '^https?://[^/]+/([^/]+)/') NOT IN ({sections}))""", HEAVY)
     ch(f"""
 INSERT INTO unified.stage (ts, src, platform, domain, url, title)
-SELECT ts, 'blogs', platform, domain, url, title FROM (
+SELECT t, 'blogs', platform, dm, url, tt FROM (
   SELECT platform, url,
-         least(argMin(ts, seen), min(seen)) AS ts,
-         argMin(domain, seen) AS domain,
-         argMin(title, seen) AS title,
-         argMin(lang, seen) AS lang
+         least(argMin(ts, seen), min(seen)) AS t,
+         argMin(domain, seen) AS dm,
+         argMin(title, seen) AS tt,
+         argMin(lang, seen) AS lg
   FROM blogs.posts
   WHERE version = 1 AND ts >= {lit(BLOGS_START)}
   GROUP BY platform, url)
-WHERE ts >= {lit(BLOGS_START)} AND lang = 'en' AND title != ''""", HEAVY)
+WHERE t >= {lit(BLOGS_START)} AND lg = 'en' AND tt != ''""", HEAVY)
 
 
 # ------------------------------------------------------------------ one day

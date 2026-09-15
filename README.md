@@ -530,9 +530,17 @@ reasons are in the root repo's `sessions/2026-09-15-unifying-the-sources.md`.
   chart and the totals follow the choice, and without GDELT the chart
   starts at the first chosen collection's month. On the compare page a term
   can name its own collections (`kirk in:blogs` beside `kirk in:gdelt,feeds`).
+  The source typeahead suggests sites from the collections chosen, with the
+  collections a site is in, and "All sources" carries the choice to the
+  sources page, which has Include boxes of its own (all three when the URL
+  names none), an In column (GDELT, news feed, Substack, Medium), links
+  that open a site on the collections it is in, and a next page for a letter
+  past 10,000 sites (T, with the blogs: `/api/sources?letter=t&after=`).
+  Blog sites are named without a leading www., as GDELT names sites and as
+  the source box cleans a name (www.slowboring.com is slowboring.com).
 - **Known limits.** The mixed search lags GDELT by up to an hour (the table is
-  built hourly; GDELT alone is live). The source typeahead lists blogs by
-  host, and every Medium post is medium.com. The Substack catch-up to
+  built hourly; GDELT alone is live). Every Medium post is medium.com, so a
+  Medium writer cannot be chosen as a source. The Substack catch-up to
   2026-09-01 was still running when this was written, so the blogs' early
   September fills in over about two days. The coverage notes on the page
   (GDELT's June 2025 gap, the feeds' 12 September start) are for Alex to

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Build `unified.headlines`: GDELT, the news collector and the blog
 collector in one table, with copy flags that are exact for every choice of
-sources. The proof of concept of 2026-09-15 (root repo:
-sessions/2026-09-15-unifying-the-sources.md); the table and its flags are
-described in scripts/unified_schema.sql.
+sources. Built as a proof of concept on 2026-09-15 and put on the site the
+same day (root repo: sessions/2026-09-15-unifying-the-sources.md); the table
+and its flags are described in scripts/unified_schema.sql.
 
 Sources and their hard start dates (a source contributes nothing earlier):
   gdelt  from START, every row of default.headlines with its copy flag

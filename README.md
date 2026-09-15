@@ -7,6 +7,8 @@ substring, with a date range and a source-domain filter. About 325 million
 rows (September 2026, growing by four million a month) from the GDELT Global
 Knowledge Graph (GKG), which has carried page titles since September 2019. For the person who wants to know when a phrase first
 turned up in the news, or what a particular outlet headlined that week.
+Since 2026-09-15 it also holds the headlines of news feeds and blogs this
+project collects itself, which a visitor can include (see "The three together").
 
 ## What it does
 
@@ -483,21 +485,22 @@ GDELT's and from the news collector's. The root repo's
   every 200 publications, so a run that dies loses at most that many.
   `scripts/blogs.py site SUBDOMAIN` prints one publication's newest posts.
 
-## The three together (a proof of concept, branch `unify`)
+## The three together
 
-Since 2026-09-15, on the `unify` branch and a preview version of the Worker
-only (production has not changed): a visitor can choose which collections a
-search, a chart or a compare line counts, with the Include boxes (`src=gdelt,feeds,blogs`
-in the URL; none is GDELT alone, exactly as before). The design and the
-reasons are in the root repo's `sessions/2026-09-15-unifying-the-sources.md`.
+Since 2026-09-15 (built as a proof of concept on a branch and a preview
+version that day, then merged and deployed): a visitor can choose which
+collections a search, a chart or a compare line counts, with the Include
+boxes (`src=gdelt,feeds,blogs` in the URL; none is GDELT alone, exactly as
+before). The design and the reasons are in the root repo's
+`sessions/2026-09-15-unifying-the-sources.md`.
 
 - **The table.** `unified.headlines` (`scripts/unified_schema.sql`), its own
   database, holds every GDELT row from 2026-09-01, the news feeds from
   2026-09-12 and the blogs from 2026-09-01: hard start dates, before which a
   collection contributes nothing. `scripts/unify.py` builds it from
   `default.headlines`, `collect.headlines` and `blogs.posts`, changing none
-  of them, hourly at :35 (`server/unify.timer`, run from a worktree of the
-  branch at `/opt/headlinesearch-unify`). A full build is 1.4 minutes (15
+  of them, hourly at :35 (`server/unify.timer`, installed by
+  `server/setup.sh` step 9). A full build is 1.4 minutes (15
   days, 1.7 million rows); an hourly run rebuilds the days that changed and
   the last three. `DROP DATABASE unified` undoes it.
 - **What goes in.** Feeds: one row per URL, the news sitemap's title before
@@ -538,6 +541,17 @@ reasons are in the root repo's `sessions/2026-09-15-unifying-the-sources.md`.
   past 10,000 sites (T, with the blogs: `/api/sources?letter=t&after=`).
   Blog sites are named without a leading www., as GDELT names sites and as
   the source box cleans a name (www.slowboring.com is slowboring.com).
+- **The front page** lists the latest headlines of the collections included
+  (GDELT's by default; ticking a box changes the list, with `src` in the
+  address), under the examples, with a bare address until something is
+  changed; an empty box with no source does the same after a search. The
+  Worker takes a search with no term and no source (newest-first 20 to
+  70 ms). GDELT stamps a whole fifteen-minute file with one time and the
+  table sorts by site within a time, so GDELT's latest batch lists from
+  the end of the alphabet; ordering by a hash of the URL instead was
+  measured and rejected (newest-first 0.06 s, but oldest-first over the
+  whole table 281 s). Paging through a batch was checked: 30 pages, 3,257
+  rows, no repeats, every row of the batches reached.
 - **Known limits.** The mixed search lags GDELT by up to an hour (the table is
   built hourly; GDELT alone is live). Every Medium post is medium.com, so a
   Medium writer cannot be chosen as a source. The Substack catch-up to

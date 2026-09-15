@@ -5,7 +5,7 @@
 // Everything else is a static asset. Nothing a visitor sends ever reaches
 // ClickHouse as SQL.
 //
-// Sources (src=gdelt,feeds,blogs; the proof of concept of 2026-09-15, see
+// Collections (src=gdelt,feeds,blogs; since 2026-09-15, see
 // scripts/unified_schema.sql): with no src, or src=gdelt, every query is
 // exactly the one it was before, on `headlines`. With any other choice the
 // range is cut at UNIFIED_START: GDELT's rows before it from `headlines`
@@ -204,7 +204,8 @@ async function sources(request, env, ctx, url) {
 // own: "congo OR drc", "el nino OR la nina"), each a set of words that must
 // all be present; `groups` holds them. Substring mode takes OR literally. A
 // totals request has no query at all, and a search or count with a source
-// may have none either: then it is every headline from those sites.
+// may have none either: then it is every headline from those sites, or,
+// with no source, every headline (the front page lists the latest).
 // `domains` is the source list, sorted so that the same set is the same
 // cache entry whatever order it was chosen in.
 function parse(p, totals = false) {
@@ -213,7 +214,9 @@ function parse(p, totals = false) {
   const domains = [...new Set((p.get("domain") || "").toLowerCase().split(",").map((d) => d.trim()).filter(Boolean))].sort();
   if (domains.length > MAX_DOMAINS) throw new Error(`at most ${MAX_DOMAINS} sources`);
   for (const d of domains) if (d.length > 100 || /[^a-z0-9.-]/.test(d)) throw new Error("a source is a site name like bbc.com");
-  if (!totals && q.length < 2 && !(q.length === 0 && domains.length)) throw new Error(domains.length ? "query must be at least two characters" : "type at least two characters, or choose a source");
+  // No term at all is every headline in the range (the front page's latest
+  // headlines, or everything from the chosen sources); one character is refused.
+  if (!totals && q.length === 1) throw new Error("query must be at least two characters");
   const mode = p.get("mode") === "substring" ? "substring" : "word";
   const split = (s) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   const groups = !q ? [] : mode === "word" ? q.split(/(?<=^|\s)OR(?=\s|$)/).map(split).filter((g) => g.length) : [split(q)];

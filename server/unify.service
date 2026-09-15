@@ -1,11 +1,11 @@
 [Unit]
-Description=Build unified.headlines (GDELT, the news feeds and the blogs together; the proof of concept)
+Description=Build unified.headlines (GDELT, the news feeds and the blogs together)
 After=clickhouse-server.service
 [Service]
 Type=oneshot
 User=headlines
 EnvironmentFile=/var/lib/headlines/env
 Environment=UNIFY_LOCK=/var/lib/headlines/unify.lock
-WorkingDirectory=/opt/headlinesearch-unify
-ExecStart=/opt/headlinesearch-unify/scripts/unify.py run
+WorkingDirectory=/opt/headlinesearch
+ExecStart=/opt/headlinesearch/scripts/unify.py run
 Nice=10

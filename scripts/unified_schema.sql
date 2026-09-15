@@ -1,5 +1,6 @@
--- The proof of concept for searching GDELT, the news collector and the blog
--- collector together (root repo: sessions/2026-09-15-unifying-the-sources.md).
+-- Searching GDELT, the news collector and the blog collector together (built
+-- 2026-09-15 as a proof of concept and put on the site the same day; root
+-- repo: sessions/2026-09-15-unifying-the-sources.md).
 -- Its own database, rebuilt by scripts/unify.py from `default.headlines`,
 -- `collect.headlines` and `blogs.posts`, none of which it changes; DROP
 -- DATABASE unified undoes it. Applied by scripts/unify.py on every run;

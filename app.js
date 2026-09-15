@@ -52,10 +52,12 @@
   const setMeasure = m => { measure = MEASURES.includes(m) ? m : "stories"; document.querySelector(`input[name=measure][value=${measure}]`).checked = true; };
   const setScale = s => { scale = SCALES.includes(s) ? s : "count"; document.querySelector(`input[name=scale][value=${scale}]`).checked = true; };
 
-  // A search needs a term of two characters or more, or a source with an
-  // empty box (everything from that site); one character is neither.
+  // A search is a term of two characters or more, or an empty box: everything
+  // from the chosen sites, or with no site the latest headlines of the chosen
+  // collections (the front page, GDELT's by default). One character is neither.
   const term = () => $("q").value.trim();
-  const ready = () => term().length >= 2 || (term().length === 0 && sources.length > 0);
+  const ready = () => term().length !== 1;
+  const listing = p => !p.get("q") && !p.get("domain"); // the latest headlines, no term and no site
 
   function params() {
     const p = new URLSearchParams();
@@ -76,7 +78,6 @@
     renderChips();
     srcs = parseSrcs(p.get("src"));
     renderSrcs();
-    if (!p.get("q") && !sources.length) return false;
     $("q").value = p.get("q") || "";
     form.mode.value = p.get("mode") === "substring" ? "substring" : "word";
     form.sort.value = p.get("sort") === "oldest" ? "oldest" : "newest";
@@ -91,12 +92,12 @@
     setMeasure(p.get("measure"));
     setScale(p.get("scale"));
     linkDates();
-    return true;
+    return [...p.keys()].length > 0; // an address with nothing in it is the front page
   }
 
   // The chart belongs to a term, a mode and a set of sources; dates and order only narrow the list.
   const chartKey = p => [p.get("q") || "", p.get("mode"), p.get("domain") || "", p.get("src") || ""].join("\n");
-  const title = p => `${p.get("q") || sources.join(", ")} - News Headline Search`;
+  const title = p => listing(p) && !p.get("src") ? "News Headline Search" : `${p.get("q") || sources.join(", ") || `Latest from ${srcNames(srcs)}`} - News Headline Search`;
   // The page's own URL for a search: the query, count=1 while the chart is up,
   // the measure and scale when not the defaults, and view=chart for the chart
   // on its own (which implies the chart, and carries no paging cursor).
@@ -129,9 +130,9 @@
     const p = params();
     if (!ready()) return;
     if (chart && chart.key !== chartKey(p)) { chart = null; $("months").hidden = true; $("list-h").hidden = true; }
-    if (push) history.pushState(null, "", pageUrl(p));
+    if (push) { const u = pageUrl(p); history.pushState(null, "", u === "?mode=word" ? location.pathname : u); } // the front page keeps a bare address
     document.title = title(p);
-    $("examples").hidden = true;
+    $("examples").hidden = !listing(p);
     $("out").hidden = false;
     if (chartOnly) { // the chart on its own: no list, so no search; the count straight away
       if (chart) renderChart(p); else count(p);
@@ -235,11 +236,12 @@
       // "Displaying 100 headlines from the latest 316 articles": the
       // rows behind the page, once copies collapsed.
       const n = rows.length;
-      $("status").textContent = `Displaying ${fmt(n)} headline${n === 1 ? "" : "s"} from the ${oldest ? "earliest" : "latest"} ${fmt(r.used)} article${r.used === 1 ? "" : "s"}.`;
+      const lead = listing(p) ? `${oldest ? "The earliest" : "The latest"} headlines from ${srcNames(srcs)}: displaying` : "Displaying";
+      $("status").textContent = `${lead} ${fmt(n)} headline${n === 1 ? "" : "s"} from the ${oldest ? "earliest" : "latest"} ${fmt(r.used)} article${r.used === 1 ? "" : "s"}.`;
     }
     $("actions").hidden = !(rows.length || chart);
     $("count").hidden = !!chart;
-    $("compare").hidden = p.get("mode") === "substring";
+    $("compare").hidden = p.get("mode") === "substring" || listing(p);
     $("compare").href = compareUrl(p);
     $("list-h").hidden = !chart;
     $("list-h").textContent = `Headlines, ${oldest ? "oldest" : "newest"} first`;
@@ -630,8 +632,8 @@
   };
   $("earlier").onclick = () => shift(-1);
   $("later").onclick = () => shift(1);
-  // Every filter back to its default; the term stays. With a term the
-  // search runs again; without one there is nothing left to search.
+  // Every filter back to its default; the term stays, and the search runs
+  // again (with no term, the front page's latest GDELT headlines).
   $("clear-all").onclick = () => {
     form.mode.value = "word"; form.sort.value = "newest";
     $("from").value = ""; $("to").value = ""; linkDates();
@@ -651,16 +653,18 @@
     }
   });
 
-  // The front page: no results, the examples back.
+  // The front page: the examples, and under them the latest headlines of the
+  // chosen collections (a one-character term leaves just the examples).
   function home(push) {
     if (push) history.pushState(null, "", location.pathname);
-    $("examples").hidden = false; $("out").hidden = true; chart = null; $("months").hidden = true;
-    document.title = "News Headline Search";
+    chart = null; $("months").hidden = true;
+    if (!ready()) { $("examples").hidden = false; $("out").hidden = true; document.title = "News Headline Search"; return; }
+    reset(); search(false);
   }
   form.onsubmit = e => {
     e.preventDefault();
     if (!ready()) {
-      $("q").setCustomValidity(term().length === 1 ? "Type at least two characters." : "Type a word, or choose a source.");
+      $("q").setCustomValidity("Type at least two characters.");
       $("q").reportValidity();
       return;
     }
@@ -668,5 +672,5 @@
   };
   $("q").addEventListener("input", () => $("q").setCustomValidity(""));
   window.onpopstate = () => { if (fromUrl()) search(false); else home(false); };
-  if (fromUrl()) search(false);
+  if (fromUrl()) search(false); else home(false);
 })();

@@ -139,6 +139,13 @@ systemctl enable --now blogs.timer
 install -m 644 server/backup.service server/backup.timer /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now backup.timer
+# 9. unified.headlines, GDELT with the news feeds and the blogs
+# (scripts/unify.py, which applies scripts/unified_schema.sql itself): the
+# ingest user and env, every hour at :35. Its first run builds every day
+# from 2026-09-01 (a minute or two).
+install -m 644 server/unify.service server/unify.timer /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now unify.timer
 echo "done. next ingest: $(systemctl list-timers ingest.timer --no-legend | awk '{print $1, $2, $3}')"
 echo "next collect: $(systemctl list-timers collect.timer --no-legend | awk '{print $1, $2, $3}')"
 echo "next blogs: $(systemctl list-timers blogs.timer --no-legend | awk '{print $1, $2, $3}')"

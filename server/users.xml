@@ -57,7 +57,7 @@
         <query>GRANT SELECT ON default.headlines</query>
         <query>GRANT SELECT ON default.labels</query>
         <query>GRANT SELECT ON default.sources</query>
-        <!-- The proof of concept of 2026-09-15 (scripts/unified_schema.sql). -->
+        <!-- The news feeds and blogs beside GDELT, since 2026-09-15 (scripts/unified_schema.sql). -->
         <query>GRANT SELECT ON unified.headlines</query>
         <query>GRANT SELECT ON unified.sources</query>
       </grants>

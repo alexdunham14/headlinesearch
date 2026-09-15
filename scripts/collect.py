@@ -375,9 +375,10 @@ def classify(f):
     return "ok"
 
 
-def read_feed(url, etag="", last_modified="", robots=None, depth=0):
+def read_feed(url, etag="", last_modified="", robots=None, depth=0, news_only=False):
     """Fetch one feed or sitemap and return (label, format, items, fetched).
-    A sitemap index is followed into its newest children."""
+    A sitemap index is followed into its newest children; with news_only,
+    into only the children that call themselves news, if it has any."""
     if robots is not None and not robots.allowed(url):
         return ("robots", "", [], Fetched(url=url))
     f = fetch(url, etag, last_modified)
@@ -393,7 +394,9 @@ def read_feed(url, etag="", last_modified="", robots=None, depth=0):
             return ("nested-index", fmt, [], f)
         children = sorted(items, key=lambda i: i["ts"] or dt.datetime.min, reverse=True)
         # Prefer children that call themselves news; then the newest by lastmod.
-        news_first = [c for c in children if "news" in c["url"].lower()] + [c for c in children if "news" not in c["url"].lower()]
+        news = [c for c in children if "news" in c["url"].lower()]
+        rest = [c for c in children if "news" not in c["url"].lower()]
+        news_first = news if news_only and news else news + rest
         out = []
         for c in news_first[:MAX_CHILD_SITEMAPS]:
             lab, cf, ci, _ = read_feed(c["url"], robots=robots, depth=1)
@@ -469,13 +472,17 @@ BLOX_RE = re.compile(r"/search/\?f=rss|/tncms/")
 def load_feeds(path=FEEDS_PATH):
     """The enabled feeds, each with a `group`: the host, except that every
     feed of a site on the BLOX platform (TownNews: most Lee Enterprises and
-    CNHI dailies, recognisable by their latest-articles feed) is in one
-    group, because the platform rate-limits an address across all its
-    sites and twenty of them fetched at once answer 429; four seconds apart, and without the search feed where a sitemap exists, they answer."""
+    CNHI dailies) is in one group, because the platform rate-limits an
+    address across all its sites and twenty of them fetched at once answer
+    429; four seconds apart, they answer. A site is BLOX if one of its
+    entries says "platform": "blox" or one of its feeds is the platform's
+    latest-articles feed. The feed URL alone is not enough: that feed was
+    dropped wherever a sitemap exists (2026-09-13), which left the group
+    one site and the other 71 fetched eight at a time."""
     with open(path) as fh:
         doc = json.load(fh)
     feeds = [f for f in doc["feeds"] if f.get("enabled", True)]
-    blox = {f["domain"] for f in feeds if BLOX_RE.search(f["url"])}
+    blox = {f["domain"] for f in feeds if f.get("platform") == "blox" or BLOX_RE.search(f["url"])}
     for f in feeds:
         f.setdefault("section", "")
         f["kind"] = "sitemap" if f.get("kind") == "sitemap" else "rss"
@@ -487,7 +494,10 @@ def one_feed(feed, cond, robots):
     etag, lm = cond.get(feed["url"], ("", ""))
     # "robots": "ignore" in feeds.json: fetched without the robots.txt check,
     # on Alex's decision for that outlet, recorded in the entry's note.
-    label, fmt, items, f = read_feed(feed["url"], etag, lm, None if feed.get("robots") == "ignore" else robots)
+    # A BLOX sitemap index lists news, business, classifieds, image, urls and
+    # video; only news has titles, so the other five requests are spared.
+    label, fmt, items, f = read_feed(feed["url"], etag, lm, None if feed.get("robots") == "ignore" else robots,
+                                     news_only=feed["group"] == "blox")
     kind = "sitemap" if fmt == "sitemap" else "feed"
     return feed, label, kind, items, f
 

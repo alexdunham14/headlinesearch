@@ -468,6 +468,14 @@ GDELT's and from the news collector's. The root repo's
   second, some 27 million rows, resumable through `blogs.files`; not
   started either. Both are for Alex to start, by hand under nohup on the
   box, once the terms and the disk (13 GB free on 2026-09-13) are settled.
+  The one walk that has run is a catch-up to a start date (2026-09-15, for
+  the blogs to be complete from 2026-09-01): `history medium --from
+  2026-09-01 --to 2026-09-05`, the five daily files before the collector's
+  first, and `history substack --since 2026-09-01 --from 2026-09-01
+  --unfetched --rate 0.3`, the publications that posted after that day but
+  were never fetched (about 41,000, since the hourly run reads a
+  publication only once its last post moves), each read back to that day
+  and not marked done, so a deeper walk later carries on from there.
 - **Checking on it.** `blogs.fetches` has a row per request with the label;
   `blogs.sites` the state of every publication; `journalctl -u blogs` each
   run's one-line summary per platform, with a progress line every 200
@@ -549,3 +557,16 @@ published IP ranges, with the Worker's traffic then plain HTTP with a
 password, from Cloudflare's edge to the box. To start from the R2 archive
 rather than re-downloading GDELT, run `server/rebuild.sql` (with the account
 id and keys filled in) through `clickhouse-client` first.
+
+### Backups
+
+GDELT's side can be rebuilt from R2 (above); the collectors' cannot, since
+feeds and news sitemaps keep only a day or two. Since 2026-09-15
+`scripts/backup.py` (daily, `server/backup.timer`, 04:40 UTC) writes a
+ClickHouse BACKUP of the tables in `collect` and `blogs` that hold data to
+the same R2 bucket: `backups/daily/YYYY-MM-DD`, deleted after 35 days by a
+lifecycle rule on the bucket, and `backups/monthly/YYYY-MM`, kept. The
+first one was 1,919 files and 125 MB in 32 seconds. The script's docstring
+has the RESTORE statement; a restore into a scratch database
+(`RESTORE TABLE collect.headlines AS scratch.headlines ...`) is how to check
+one without touching the real tables.

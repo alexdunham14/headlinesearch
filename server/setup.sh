@@ -134,6 +134,12 @@ install -m 644 server/blogs.service server/blogs.timer /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now collect.timer
 systemctl enable --now blogs.timer
+# 8. The daily backup of the collectors' tables to R2 (scripts/backup.py):
+# the ingest user and its env, which has the R2 keys.
+install -m 644 server/backup.service server/backup.timer /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now backup.timer
 echo "done. next ingest: $(systemctl list-timers ingest.timer --no-legend | awk '{print $1, $2, $3}')"
 echo "next collect: $(systemctl list-timers collect.timer --no-legend | awk '{print $1, $2, $3}')"
 echo "next blogs: $(systemctl list-timers blogs.timer --no-legend | awk '{print $1, $2, $3}')"
+echo "next backup: $(systemctl list-timers backup.timer --no-legend | awk '{print $1, $2, $3}')"

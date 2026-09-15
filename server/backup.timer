@@ -1,0 +1,8 @@
+[Unit]
+Description=Back up the collectors' tables to R2 once a day
+[Timer]
+OnCalendar=*-*-* 04:40:00 UTC
+RandomizedDelaySec=600
+Persistent=true
+[Install]
+WantedBy=timers.target

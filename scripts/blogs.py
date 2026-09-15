@@ -60,7 +60,7 @@ seen, later versions are the edits, timed by seen.
   scripts/blogs.py run [--platform substack|medium|wordpress] [--dry-run] [--limit N]
   scripts/blogs.py site SUBDOMAIN|URL           # one Substack publication's first archive page, printed
   scripts/blogs.py leaderboards [--dry-run]      # sweep Substack's category leaderboards into blogs.sites
-  scripts/blogs.py history substack [--since 2025-09-13] [--from 2018-01-01] [--limit N]
+  scripts/blogs.py history substack [--since 2025-09-13] [--from 2018-01-01] [--limit N] [--unfetched] [--rate R]
   scripts/blogs.py history medium --from 2019-01-01 [--to 2026-09-01] [--limit N]
 
 `run` is what the timer calls: Substack's index every run, the leaderboard
@@ -951,10 +951,19 @@ def history_medium(cfg, day_from, day_to, limit=None, dry_run=False):
 
 # ------------------------------------------------------------ substack history
 
-def history_substack(cfg, since, date_from, limit=None, dry_run=False):
+def history_substack(cfg, since, date_from, limit=None, dry_run=False, unfetched=False, rate=None):
     """Walk publications' archives back to date_from, most recently active
     first, resumable through blogs.history. since limits which publications:
-    those the platform's list shows posting on or after it."""
+    those the platform's list shows posting on or after it.
+
+    unfetched: only publications the hourly run has never fetched (it
+    fetches a publication only once its last post moves, so one that posted
+    on 2026-09-05 and not since has none of its posts stored). This is the
+    catch-up that makes the blogs complete from a start date: with --since
+    and --from both that date, every publication that posted after it and
+    was never read is read back to it. A walk that stops at date_from is
+    not marked done, so a later, deeper walk resumes from the offset
+    reached instead of skipping the publication."""
     seen = utcnow()
     state = load_sites("substack")
     q = "SELECT site, offset, done, oldest, pages FROM blogs.history FINAL WHERE platform = 'substack' FORMAT TSV"
@@ -964,11 +973,12 @@ def history_substack(cfg, since, date_from, limit=None, dry_run=False):
         marks[site] = {"offset": int(offset), "done": int(done), "oldest": parse_date(oldest), "pages": int(pages)}
     todo = [s for s, r in sorted(state.items(), key=lambda kv: kv[1].lastmod, reverse=True)
             if r.lastmod >= since and r.status not in ("blocked", "robots", "http 404", "http 410")
-            and not marks.get(s, {}).get("done")]
+            and not marks.get(s, {}).get("done")
+            and not (unfetched and r.fetched.year > 2000)]
     if limit:
         todo = todo[:limit]
     print(f"substack history: {len(todo)} publications to walk back to {date_from:%Y-%m-%d}", flush=True)
-    limiter = Limiter(cfg.get("rate", 2), "substack history")
+    limiter = Limiter(rate or cfg.get("rate", 2), "substack history")
     robots = PlatformRobots(shared={".substack.com": "substack.com"})
     rows, log, marks_out, n_done = [], [], [], 0
 
@@ -1009,7 +1019,7 @@ def history_substack(cfg, since, date_from, limit=None, dry_run=False):
                 oldest = min(oldest or dates[0], min(dates))
             offset += len(posts)
             if dates and min(dates) < date_from:
-                done = 1
+                done = 0 if unfetched else 1
                 break
         marks_out.append({"platform": "substack", "site": site, "offset": offset, "done": done,
                           "oldest": fmt(oldest) if oldest else "1970-01-01 00:00:00", "pages": pages, "updated": fmt(utcnow())})
@@ -1114,6 +1124,8 @@ def main():
     p.add_argument("--from", dest="date_from", default="2018-01-01", help="walk back to this day")
     p.add_argument("--to", dest="date_to", default=None, help="medium: last day to read (default yesterday)")
     p.add_argument("--limit", type=int)
+    p.add_argument("--unfetched", action="store_true", help="substack: only publications the hourly run never fetched (the catch-up to a start date)")
+    p.add_argument("--rate", type=float, help="substack: requests a second, below the configured rate when the hourly run is going too")
     p.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
     cfg = load_config()
@@ -1132,7 +1144,8 @@ def main():
     if a.cmd == "history":
         if a.platform == "substack":
             since = parse_date(a.since) if a.since else utcnow() - dt.timedelta(days=365)
-            history_substack(cfg["substack"], since, parse_date(a.date_from), limit=a.limit, dry_run=a.dry_run)
+            history_substack(cfg["substack"], since, parse_date(a.date_from), limit=a.limit, dry_run=a.dry_run,
+                             unfetched=a.unfetched, rate=a.rate)
         else:
             to = a.date_to or (utcnow() - dt.timedelta(days=1)).strftime("%Y-%m-%d")
             history_medium(cfg["medium"], a.date_from, to, limit=a.limit, dry_run=a.dry_run)

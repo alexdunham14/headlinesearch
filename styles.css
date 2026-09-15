@@ -36,6 +36,8 @@ input:focus-visible, .chip:focus-visible, .go:focus-visible, .big:focus-visible,
 .seg span { display: block; padding: .25rem .7rem; font-size: .95rem; white-space: nowrap; }
 .seg input:checked + span { background: var(--bar); color: #fff; }
 .seg input:focus-visible + span { outline: 2px solid var(--bar-sel); outline-offset: -2px; }
+/* Checkboxes in a segment (Include): several can be on, so each is ruled off from the next */
+#srcs label + label span { border-left: 1px solid var(--edge); }
 .dates label { display: inline-flex; flex: 1 1 8rem; align-items: center; gap: .35rem; font-size: .95rem; color: var(--muted); }
 .dates input { flex: 1 1 auto; width: 100%; font-size: .95rem; padding: .25rem .45rem; }
 .chips { display: inline-flex; flex-wrap: wrap; gap: .35rem; }

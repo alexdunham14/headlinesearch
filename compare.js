@@ -31,6 +31,14 @@
   const PRINT = { ink: "#1a1a1a", muted: "#666", line: "#ddd" };
 
   let loaded = { first: "2019-10-01", last: day(new Date()) };
+  // The collections counted (src=gdelt,feeds,blogs): the Include boxes for
+  // every term, or a term's own in:blogs. GDELT alone is no src at all.
+  const SRCS = ["gdelt", "feeds", "blogs"];
+  const SRC_NAMES = { gdelt: "GDELT", feeds: "news feeds", blogs: "blogs" };
+  let srcs = ["gdelt"];
+  const parseSrcs = s => { const g = (s || "").toLowerCase().split(","); const out = SRCS.filter(x => g.includes(x)); return out.length ? out : ["gdelt"]; };
+  const srcText = list => list.length === 1 && list[0] === "gdelt" ? "" : list.join(",");
+  const renderSrcs = () => document.querySelectorAll("input[name=src]").forEach(i => { i.checked = srcs.includes(i.value); });
   let measure = "stories", scale = "count";
   let chartOnly = false; // ?view=chart: the chart on its own, first on the page, with a link to the full page
   const setMeasure = m => { measure = MEASURES.includes(m) ? m : "stories"; document.querySelector(`input[name=measure][value=${measure}]`).checked = true; };
@@ -59,11 +67,17 @@
   // anywhere in the text; `domain` is the list, comma-joined and sorted, as
   // the Worker takes it. A term with a site: and no words is everything
   // from those sources.
+  // "gaza in:blogs" is the words "gaza" in the blogs only; `src` is the
+  // term's own collections, or the Include boxes'.
   function parseSeries(text) {
     const ds = new Set();
-    const q = text.replace(/(?:^|\s)site:([a-z0-9.,-]+)(?=\s|$)/gi, (m, d) => { d.toLowerCase().split(",").filter(Boolean).forEach(x => ds.add(x)); return " "; }).replace(/\s+/g, " ").trim();
-    return { text: text.replace(/\s+/g, " ").trim(), q, domain: [...ds].sort().join(",") };
+    let own = null;
+    const q = text.replace(/(?:^|\s)site:([a-z0-9.,-]+)(?=\s|$)/gi, (m, d) => { d.toLowerCase().split(",").filter(Boolean).forEach(x => ds.add(x)); return " "; })
+      .replace(/(?:^|\s)in:([a-z,]+)(?=\s|$)/gi, (m, x) => { own = parseSrcs(x); return " "; }).replace(/\s+/g, " ").trim();
+    return { text: text.replace(/\s+/g, " ").trim(), q, domain: [...ds].sort().join(","), src: srcText(own || srcs) };
   }
+  // A series' totals belong to its sites and its collections.
+  const totalsKey = ser => `${ser.domain}|${ser.src}`;
   const read = () => rows().map(i => parseSeries(i.value)).filter(s => s.text);
 
   function toUrl(series, view = chartOnly) {
@@ -73,11 +87,14 @@
     if (scale !== "count") p.set("scale", scale);
     if ($("from").value) p.set("from", $("from").value);
     if ($("to").value) p.set("to", $("to").value);
+    if (srcText(srcs)) p.set("src", srcText(srcs));
     if (view) p.set("view", "chart");
     return "?" + p;
   }
   function fromUrl() {
     const p = new URLSearchParams(location.search);
+    srcs = parseSrcs(p.get("src"));
+    renderSrcs();
     const ss = p.getAll("s").map(t => t.trim()).filter(Boolean).slice(0, MAX);
     $("series").innerHTML = "";
     $("add").hidden = false;
@@ -97,9 +114,17 @@
   // Every month the database holds, oldest first; the months in the date
   // range; and the twelve-month windows, newest first, cut exactly as the
   // search page cuts them so both pages hit the same cache entries.
+  // From GDELT's first month if any term counts GDELT, else from the first
+  // month of the earliest collection counted.
+  const firstDay = () => {
+    const used = new Set((state ? state.series.map(x => x.src) : [srcText(srcs)]).flatMap(x => parseSrcs(x)));
+    return used.has("gdelt") || !loaded.src ? loaded.first : [...used].map(x => loaded.src[x] || loaded.last).sort()[0];
+  };
+  // A term's first month: GDELT's if it counts GDELT, else its earliest collection's.
+  const startMonth = ser => { const l = parseSrcs(ser.src); return (l.includes("gdelt") || !loaded.src ? loaded.first : l.map(x => loaded.src[x] || loaded.last).sort()[0]).slice(0, 7); };
   function monthList() {
     const out = [];
-    let [y, m] = loaded.first.slice(0, 7).split("-").map(Number);
+    let [y, m] = firstDay().slice(0, 7).split("-").map(Number);
     const last = loaded.last.slice(0, 7);
     for (;;) {
       const ym = `${y}-${String(m).padStart(2, "0")}`;
@@ -109,7 +134,7 @@
     }
   }
   function span() {
-    const f = ($("from").value || loaded.first).slice(0, 7), t = ($("to").value || loaded.last).slice(0, 7);
+    const f = ($("from").value || firstDay()).slice(0, 7), t = ($("to").value || loaded.last).slice(0, 7);
     return monthList().filter(m => m >= f && m <= t);
   }
   function windows() {
@@ -156,7 +181,7 @@
     document.title = `${series.map(s => s.text).join(", ")} - News Headline Search`;
     $("examples").hidden = true;
     $("out").hidden = false;
-    const key = series.map(s => s.text).join("\n");
+    const key = series.map(s => `${s.text}|${s.src}`).join("\n");
     if (state && state.key === key) { schedule(); render(); return; } // the same terms: keep what is counted
     gen++;
     state = {
@@ -182,17 +207,20 @@
         const q = new URLSearchParams({ mode: "word", from, to });
         if (ser.q) q.set("q", ser.q);
         if (ser.domain) q.set("domain", ser.domain);
+        if (ser.src) q.set("src", ser.src);
         enqueue({ gen: s.gen, url: "/api/count?" + q, skip: () => !!ser.error, done: r => { ser.pending--; take(ser, w, r); } });
       }
       if (scale !== "share") continue;
-      for (const d of new Set(s.series.filter(x => !x.error).map(x => x.domain))) {
-        let t = s.totals.get(d);
-        if (!t) { t = { ...fetched, counts: new Map(), partial: new Set(), have: new Set() }; s.totals.set(d, t); }
+      for (const tk of new Set(s.series.filter(x => !x.error).map(totalsKey))) {
+        const [d, sr] = tk.split("|");
+        let t = s.totals.get(tk);
+        if (!t) { t = { ...fetched, counts: new Map(), partial: new Set(), have: new Set() }; s.totals.set(tk, t); }
         if (t.have.has(wk)) continue;
         t.have.add(wk);
         t.pending++;
         const q = new URLSearchParams({ from, to });
         if (d) q.set("domain", d);
+        if (sr) q.set("src", sr);
         enqueue({ gen: s.gen, url: "/api/totals?" + q, skip: () => false, done: r => { t.pending--; take(t, w, r); } });
       }
     }
@@ -224,9 +252,9 @@
     const cols = colours();
     const value = (ser, m) => {
       const v = ser.counts.get(m);
-      if (!v) return null;
+      if (!v || m < startMonth(ser)) return null; // no line before the term's collections begin
       if (scale === "count") return v[k];
-      const t = s.totals.get(ser.domain)?.counts.get(m);
+      const t = s.totals.get(totalsKey(ser))?.counts.get(m);
       return t ? (t[k] ? v[k] / t[k] * 100 : 0) : null;
     };
     for (const ser of s.series) {
@@ -234,7 +262,7 @@
       for (const m of months) {
         const v = ser.counts.get(m);
         if (!v) continue;
-        const t = s.totals.get(ser.domain)?.counts.get(m);
+        const t = s.totals.get(totalsKey(ser))?.counts.get(m);
         for (let i = 0; i < 3; i++) { ser.total[i] += v[i]; if (t) ser.tot[i] += t[i]; }
         if (v[k] > ser.max) { ser.max = v[k]; ser.peakMonth = m; }
       }
@@ -264,6 +292,7 @@
       const lp = new URLSearchParams({ count: 1 });
       if (ser.q) lp.set("q", ser.q);
       if (ser.domain) lp.set("domain", ser.domain);
+      if (ser.src) lp.set("src", ser.src);
       if (measure !== "stories") lp.set("measure", measure);
       if (scale !== "count") lp.set("scale", scale);
       const share = scale === "share" && ser.tot[k] ? `, ${fmtPct(ser.total[k] / ser.tot[k] * 100)} of ${whose(ser)} ${measure}` : "";
@@ -296,7 +325,9 @@
   // month": the status line and the image's title. `whose`: whose headlines a
   // share is of ("all", "bbc.com's", "the 3 sources'").
   const what = () => scale === "share" ? `Results per month as a share of all ${measure} that month` : "Results per month";
-  const whose = ser => { const ds = ser.domain ? ser.domain.split(",") : []; return !ds.length ? "all" : ds.length === 1 ? `${esc(ds[0])}'s` : `the ${ds.length} sources'`; };
+  const whose = ser => { const ds = ser.domain ? ser.domain.split(",") : []; return (!ds.length ? "all" : ds.length === 1 ? `${esc(ds[0])}'s` : `the ${ds.length} sources'`) + (ser.src ? ` ${srcNames(parseSrcs(ser.src))}` : ""); };
+  // "GDELT, news feeds and blogs"
+  const srcNames = list => { const n = list.map(x => SRC_NAMES[x]); return n.length < 2 ? n.join("") : `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]}`; };
 
   const fmtTick = v => scale === "share" ? `${+v.toPrecision(3)}%` : fmtShort(v);
 
@@ -307,7 +338,7 @@
     $("readout").innerHTML = `<b>${fmtMonth(m)}</b>` + series.map((ser, j) => {
       const v = ser.counts.get(m);
       if (!v) return "";
-      const t = state.totals.get(ser.domain)?.counts.get(m);
+      const t = state.totals.get(totalsKey(ser))?.counts.get(m);
       const extra = scale === "share" ? (t ? ` (${fmtPct(t[k] ? v[k] / t[k] * 100 : 0)} of ${fmtShort(t[k])})` : "") : "";
       return ` <span class="rd"><i style="background:${cols[j]}"></i>${esc(ser.text)} ${ser.partial.has(m) ? "~" : ""}${fmt(v[k])}${extra}</span>`;
     }).join("");
@@ -343,7 +374,8 @@
     y += CH + 12;
     for (const l of urlLines) { y += 15; svg += `<text x="${M}" y="${y}" font-size="12" fill="${PRINT.muted}">${esc(l)}</text>`; }
     y += 18;
-    svg += `<text x="${M}" y="${y}" font-size="12" fill="${PRINT.muted}">newsheadlinesearch.com · headlines from GDELT · drawn ${fmtDay(day(new Date()))}</text></svg>`;
+    const used = SRCS.filter(x => s.series.some(ser => parseSrcs(ser.src).includes(x)));
+    svg += `<text x="${M}" y="${y}" font-size="12" fill="${PRINT.muted}">newsheadlinesearch.com · headlines from ${srcNames(used)} · drawn ${fmtDay(day(new Date()))}</text></svg>`;
     const blobUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
     try {
       const img = new Image();
@@ -396,6 +428,12 @@
     $("from").value = `${t.dataset.year}-01-01`; $("to").value = `${t.dataset.year}-12-31`;
     redate();
   });
+  $("srcs").addEventListener("change", ev => {
+    const on = [...document.querySelectorAll("input[name=src]:checked")].map(i => i.value);
+    if (!on.length) { ev.target.checked = true; return; } // at least one collection
+    srcs = SRCS.filter(x => on.includes(x));
+    if (state) draw(true);
+  });
   $("png").onclick = saveImage;
   let resizeTimer;
   addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 150); });
@@ -405,6 +443,12 @@
   const statsReady = fetch("/api/stats").then(res => res.json()).then(s => {
     if (s.error) throw new Error(s.error);
     loaded = { first: s.first.slice(0, 10), last: s.last.slice(0, 10) };
+    const u = s.unified?.src;
+    if (u) {
+      loaded.src = { gdelt: loaded.first };
+      for (const x of ["feeds", "blogs"]) if (u[x]) loaded.src[x] = u[x].first.slice(0, 10);
+      $("src-since").textContent = `GDELT from ${fmtDay(loaded.first)}${u.feeds ? `; news feeds from ${fmtDay(loaded.src.feeds)}` : ""}${u.blogs ? `; blogs (Substack and Medium, in English) from ${fmtDay(loaded.src.blogs)}` : ""}.`;
+    }
     $("stats").textContent = `Headlines from ${fmtDay(loaded.first)} to ${fmtDay(loaded.last)}.`;
     $("from").min = $("to").min = loaded.first; $("from").max = $("to").max = loaded.last; linkDates();
   }).catch(() => { $("stats").textContent = "Could not reach the database just now."; });

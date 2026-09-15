@@ -27,6 +27,15 @@
   // name several (the Worker takes them comma-separated) or none.
   const MAX_SOURCES = 10;
   let sources = [];
+  // What is searched (src=gdelt,feeds,blogs in the URL): GDELT alone unless
+  // the Include boxes say otherwise, and then no src at all, so every link
+  // made before the boxes existed means what it meant.
+  const SRCS = ["gdelt", "feeds", "blogs"];
+  const SRC_NAMES = { gdelt: "GDELT", feeds: "news feeds", blogs: "blogs" };
+  let srcs = ["gdelt"];
+  const srcParam = () => srcs.length === 1 && srcs[0] === "gdelt" ? "" : srcs.join(",");
+  const parseSrcs = s => { const g = (s || "").toLowerCase().split(","); const out = SRCS.filter(x => g.includes(x)); return out.length ? out : ["gdelt"]; };
+  const renderSrcs = () => document.querySelectorAll("input[name=src]").forEach(i => { i.checked = srcs.includes(i.value); });
   // The month chart for the current term: per "YYYY-MM" a triple [stories,
   // outlets, articles] (see renderChart), filled in window by window; the
   // bars show the measure chosen under the chart, as a count or as a share
@@ -52,6 +61,7 @@
     if ($("from").value) p.set("from", $("from").value);
     if ($("to").value) p.set("to", $("to").value);
     if (sources.length) p.set("domain", sources.join(","));
+    if (srcParam()) p.set("src", srcParam());
     if (cursor) { for (const [k, v] of Object.entries(cursor)) p.set(k, v); p.set("page", page); }
     return p;
   }
@@ -60,6 +70,8 @@
     const p = new URLSearchParams(location.search);
     sources = parseSources(p.get("domain"));
     renderChips();
+    srcs = parseSrcs(p.get("src"));
+    renderSrcs();
     if (!p.get("q") && !sources.length) return false;
     $("q").value = p.get("q") || "";
     form.mode.value = p.get("mode") === "substring" ? "substring" : "word";
@@ -79,7 +91,7 @@
   }
 
   // The chart belongs to a term, a mode and a set of sources; dates and order only narrow the list.
-  const chartKey = p => [p.get("q") || "", p.get("mode"), p.get("domain") || ""].join("\n");
+  const chartKey = p => [p.get("q") || "", p.get("mode"), p.get("domain") || "", p.get("src") || ""].join("\n");
   const title = p => `${p.get("q") || sources.join(", ")} - News Headline Search`;
   // The page's own URL for a search: the query, count=1 while the chart is up,
   // the measure and scale when not the defaults, and view=chart for the chart
@@ -98,12 +110,15 @@
   };
   // Whose headlines a share is of ("all", "bbc.com's", "the 3 sources'"), and
   // the words a heading gains for a share.
-  const whose = () => !sources.length ? "all" : sources.length === 1 ? `${sources[0]}'s` : `the ${sources.length} sources'`;
+  const whose = () => (!sources.length ? "all" : sources.length === 1 ? `${sources[0]}'s` : `the ${sources.length} sources'`) + (srcParam() ? ` ${srcNames(srcs)}` : "");
   const asShare = () => scale === "share" ? `, as a share of ${whose()} ${measure}` : "";
+  // "GDELT, news feeds and blogs"
+  const srcNames = list => { const n = list.map(x => SRC_NAMES[x]); return n.length < 2 ? n.join("") : `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]}`; };
   // The chart's heading when it stands alone: the term, its mode, its sources.
   const describe = p => {
     const q = p.get("q"), d = sources.join(", ");
-    return `${q ? `“${q}”` : "Everything"}${p.get("mode") === "substring" ? " as a substring" : ""}${d ? ` ${q ? "on" : "from"} ${d}` : ""}, by month${asShare()}`;
+    const from = p.get("src") ? ` in ${srcNames(parseSrcs(p.get("src")))}` : "";
+    return `${q ? `“${q}”` : "Everything"}${p.get("mode") === "substring" ? " as a substring" : ""}${d ? ` ${q ? "on" : "from"} ${d}` : ""}${from}, by month${asShare()}`;
   };
 
   async function search(push) {
@@ -229,7 +244,7 @@
       const more = others.length ? ` <a href="#" class="ex" aria-expanded="false">+${others.length} more</a><span class="copies" hidden>: ${others.map(([d, o]) => `<a href="${esc(o.u)}" rel="nofollow noopener">${esc(d)}</a>${o.k > 1 ? `<span class="n">&times;${o.k}</span>` : ""}`).join(", ")}</span>` : "";
       return `<li>
       ${hl(g.title)}${g.n > 1 ? ` <span class="n" title="${g.n} copies of this headline${g.sites > 1 ? ` on ${g.sites} sites` : ""}">×${g.n}</span>` : ""}
-      <span class="m"><span title="${esc(g.ts)} UTC">${fmtDay(g.ts)}</span> · <a href="${esc(g.url)}" rel="nofollow noopener">${esc(g.domain)}</a>${more}</span>
+      <span class="m"><span title="${esc(g.ts)} UTC">${fmtDay(g.ts)}</span> · <a href="${esc(g.url)}" rel="nofollow noopener">${esc(g.domain)}</a>${kind(g)}${more}</span>
     </li>`;
     }).join("");
     if (r.next) {
@@ -240,22 +255,30 @@
     else if (wantCount && rows.length) { wantCount = false; count(p); }
   }
 
+  // Which collection a headline came from, in words, when it is not GDELT's
+  // (older cached answers carry no src, and GDELT's rows none either).
+  const kind = g => g.src === "feeds" ? " · news feed" : g.src === "blogs" ? ` · ${g.platform === "medium" ? "Medium (title from the address)" : "Substack"}` : "";
+
   // The compare page with this search's term, sources, measure, scale and dates.
   function compareUrl(p) {
     const s = [p.get("q") || "", sources.length ? `site:${sources.join(",")}` : ""].join(" ").trim();
     const cp = new URLSearchParams({ s });
     if (measure !== "stories") cp.set("measure", measure);
     if (scale !== "count") cp.set("scale", scale);
+    if (p.get("src")) cp.set("src", p.get("src"));
     if (p.get("from")) cp.set("from", p.get("from"));
     if (p.get("to")) cp.set("to", p.get("to"));
     return "/compare?" + cp;
   }
 
   // ------------------------------------------------------------- the month chart
-  // Every month the database holds, oldest first.
+  // Every month the database holds for the chosen sources, oldest first:
+  // from GDELT's first month when GDELT is one, else from the first month
+  // of the earliest chosen source.
+  const firstDay = () => srcs.includes("gdelt") || !loaded.src ? loaded.first : srcs.map(x => loaded.src[x] || loaded.last).sort()[0];
   function monthList() {
     const out = [];
-    let [y, m] = loaded.first.slice(0, 7).split("-").map(Number);
+    let [y, m] = firstDay().slice(0, 7).split("-").map(Number);
     const last = loaded.last.slice(0, 7);
     for (;;) {
       const ym = `${y}-${String(m).padStart(2, "0")}`;
@@ -276,6 +299,7 @@
   const totals = new Map(); // sources, sorted and comma-joined ("" for all) -> { counts, partial, have }
   const totalsFor = dom => { if (!totals.has(dom)) totals.set(dom, { counts: new Map(), partial: new Set(), have: new Set() }); return totals.get(dom); };
   const domainKey = p => (p.get("domain") || "").split(",").filter(Boolean).sort().join(",");
+  const totalsKey = p => `${domainKey(p)}|${p.get("src") || ""}`; // totals depend on the sites and the collections
 
   function count(p) {
     chart = { key: chartKey(p), counts: new Map(), partial: new Set(), asked: new Set(), askedTotals: new Set(), running: false, failed: 0, limited: 0, wait: 0 };
@@ -299,7 +323,7 @@
     if (chart !== c) return;
     const months = monthList(), windows = [];
     for (let i = months.length; i > 0; i -= 12) windows.push(months.slice(Math.max(0, i - 12), i));
-    const dom = domainKey(p), t = totalsFor(dom);
+    const dom = domainKey(p), t = totalsFor(totalsKey(p));
     const next = () => {
       for (const w of windows) {
         if (!c.asked.has(w[0])) { c.asked.add(w[0]); return { w }; }
@@ -314,6 +338,7 @@
       const q = new URLSearchParams({ from: w[0] + "-01", to: monthEnd(w[w.length - 1]) });
       if (!job.totals) { q.set("mode", p.get("mode")); if (p.get("q")) q.set("q", p.get("q")); }
       if (dom) q.set("domain", dom);
+      if (p.get("src")) q.set("src", p.get("src"));
       let r;
       try { r = await fetch((job.totals ? "/api/totals?" : "/api/count?") + q).then(res => res.json()); } catch (e) { r = { error: "count failed" }; }
       if (r.error || (chart !== c && !job.totals)) return r; // totals belong to no one search, so they are kept anyway
@@ -357,12 +382,12 @@
     const months = monthList();
     const c = chart.counts;
     const k = MEASURES.indexOf(measure);
-    const t = scale === "share" ? totalsFor(domainKey(p)) : null;
+    const t = scale === "share" ? totalsFor(totalsKey(p)) : null;
     const share = (v, x, i) => x[i] ? v[i] / x[i] * 100 : 0;
     // What a bar shows: the count, or the share once the month's totals are in.
     const value = m => { const v = c.get(m); if (v == null) return null; if (!t) return v[k]; const x = t.counts.get(m); return x ? share(v, x, k) : null; };
     const partial = m => chart.partial.has(m) || !!t?.partial.has(m);
-    const from = p.get("from") || loaded.first, to = p.get("to") || loaded.last;
+    const from = p.get("from") || firstDay(), to = p.get("to") || loaded.last;
     const narrowed = p.get("from") || p.get("to");
     const total = [0, 0, 0];
     let max = 0, peak = null, first = null, last = null, part = 0, base = 0;
@@ -564,6 +589,13 @@
   const statsReady = fetch("/api/stats").then(res => res.json()).then(s => {
     if (s.error) throw new Error(s.error);
     loaded = { first: s.first.slice(0, 10), last: s.last.slice(0, 10) };
+    // Each collection's first day, for the chart's span and the line under the Include boxes.
+    const u = s.unified?.src;
+    if (u) {
+      loaded.src = { gdelt: loaded.first };
+      for (const x of ["feeds", "blogs"]) if (u[x]) loaded.src[x] = u[x].first.slice(0, 10);
+      $("src-since").textContent = `GDELT from ${fmtDay(loaded.first)}${u.feeds ? `; news feeds from ${fmtDay(loaded.src.feeds)}` : ""}${u.blogs ? `; blogs (Substack and Medium, in English) from ${fmtDay(loaded.src.blogs)}` : ""}.`;
+    }
     $("n").textContent = s.rows >= 1e6 ? `${Math.round(s.rows / 1e6)} million` : fmt(s.rows);
     $("stats").textContent = `${fmt(s.rows)} headlines from ${s.sources ? `${fmt(s.sources)} sources, ` : ""}${fmtDay(loaded.first)} to ${fmtDay(loaded.last)}.`
       + (loaded.first > "2019-10-02" ? " Earlier years are still being loaded." : "");
@@ -594,9 +626,19 @@
     form.mode.value = "word"; form.sort.value = "newest";
     $("from").value = ""; $("to").value = ""; linkDates();
     sources = []; renderChips(); box.value = ""; closeList();
+    srcs = ["gdelt"]; renderSrcs();
     if (ready()) go(); else home(true);
   };
-  form.addEventListener("change", ev => { if (ev.target.name === "mode" || ev.target.name === "sort") go(); });
+  form.addEventListener("change", ev => {
+    if (ev.target.name === "mode" || ev.target.name === "sort") go();
+    if (ev.target.name === "src") {
+      const on = [...document.querySelectorAll("input[name=src]:checked")].map(i => i.value);
+      if (!on.length) { ev.target.checked = true; return; } // at least one collection
+      srcs = SRCS.filter(x => on.includes(x));
+      if (chart) wantCount = true; // a chart that was up is counted again for the new choice
+      go();
+    }
+  });
 
   // The front page: no results, the examples back.
   function home(push) {

@@ -45,7 +45,18 @@
       <span class="chips"><button type="button" class="chip" id="clear-dates" title="The whole archive">all dates</button></span>
     </div>
   </div>
-  <p class="help">Each term is a whole-word search, in any order, case and accents aside. OR between alternatives counts headlines with any of them (congo OR drc). site:bbc.com after a term counts one source, site:bbc.com,nytimes.com several, and the share is then of those sources' headlines; a site: on its own counts everything from it.</p>
+  <div class="opts">
+    <div class="group" role="group" aria-label="Include">
+      <span class="lbl">Include</span>
+      <span class="seg" id="srcs">
+        <label><input type="checkbox" name="src" value="gdelt" checked><span>GDELT news</span></label>
+        <label><input type="checkbox" name="src" value="feeds"><span>news feeds</span></label>
+        <label><input type="checkbox" name="src" value="blogs"><span>blogs</span></label>
+      </span>
+      <span class="since n" id="src-since"></span>
+    </div>
+  </div>
+  <p class="help">Each term is a whole-word search, in any order, case and accents aside. OR between alternatives counts headlines with any of them (congo OR drc). site:bbc.com after a term counts one source, site:bbc.com,nytimes.com several, and the share is then of those sources' headlines; a site: on its own counts everything from it. in:blogs after a term counts it in the blogs only, in:gdelt,feeds in those two, whatever the boxes say.</p>
 </form>
 
 <p id="examples">Try: <a href="?s=ukraine&amp;s=gaza&amp;s=sudan">ukraine, gaza, sudan</a>; <a href="?s=covid+OR+coronavirus&amp;s=flu+OR+influenza&amp;scale=share">covid against flu, as a share</a>; <a href="?s=trump+site:bbc.com&amp;s=trump+site:nytimes.com&amp;scale=share">trump on bbc.com against nytimes.com</a>; <a href="?s=el+nino+OR+la+nina&amp;s=drought&amp;s=flood+OR+floods">el niño, drought, floods</a>.</p>

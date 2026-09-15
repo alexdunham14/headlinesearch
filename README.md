@@ -483,6 +483,61 @@ GDELT's and from the news collector's. The root repo's
   every 200 publications, so a run that dies loses at most that many.
   `scripts/blogs.py site SUBDOMAIN` prints one publication's newest posts.
 
+## The three together (a proof of concept, branch `unify`)
+
+Since 2026-09-15, on the `unify` branch and a preview version of the Worker
+only (production has not changed): a visitor can choose which collections a
+search, a chart or a compare line counts, with the Include boxes (`src=gdelt,feeds,blogs`
+in the URL; none is GDELT alone, exactly as before). The design and the
+reasons are in the root repo's `sessions/2026-09-15-unifying-the-sources.md`.
+
+- **The table.** `unified.headlines` (`scripts/unified_schema.sql`), its own
+  database, holds every GDELT row from 2026-09-01, the news feeds from
+  2026-09-12 and the blogs from 2026-09-01: hard start dates, before which a
+  collection contributes nothing. `scripts/unify.py` builds it from
+  `default.headlines`, `collect.headlines` and `blogs.posts`, changing none
+  of them, hourly at :35 (`server/unify.timer`, run from a worktree of the
+  branch at `/opt/headlinesearch-unify`). A full build is 1.4 minutes (15
+  days, 1.7 million rows); an hourly run rebuilds the days that changed and
+  the last three. `DROP DATABASE unified` undoes it.
+- **What goes in.** Feeds: one row per URL, the news sitemap's title before
+  the feed's, dated by the item but never after it was first seen, and left
+  out when first seen more than three days after its date; English only (BBC
+  URLs in the sections GDELT records, and titles whose letters are mostly
+  A to Z). Blogs: one row per URL, `lang = 'en'` (Substack's own field,
+  Medium's guess). Medium titles are URL slugs and dated to the day.
+- **Exact counts.** Two copy flags a row: `copy`, within the row's own
+  collection (GDELT's is carried over from `default.headlines`), and
+  `copy_news`, within GDELT and the feeds together, with 255 on a feed row
+  whose URL GDELT also has. A blog post never counts as a copy of a news
+  story. So every choice counts stories, outlets and articles as if its
+  rows had come through one ingest. `scripts/unify.py check` tests it: on
+  2026-09-15 GDELT's `copy_news` equalled its `copy` on all 1,114,286 rows
+  before the feeds began, and every flag recomputed in one query over the
+  table (913,318 rows) equalled the stored one.
+- **The Worker.** Any choice but GDELT alone cuts the date range at
+  2026-09-01: GDELT's rows before it from `headlines` (if GDELT is chosen),
+  the chosen collections' rows from it on from `unified.headlines`, with
+  `copy_news` when GDELT and the feeds are both chosen. A page reads the
+  newer part first and the older only for what is left of the limit; tested
+  across the seam newest-first and oldest-first, every row once and in
+  order. The default answers were compared with production's for six
+  requests and are identical. `/api/stats` gains each collection's first
+  and last day; `/api/sources` takes `src` too.
+- **The pages.** The Include boxes on the search and compare pages, with the
+  start dates under them; a headline from the feeds or a blog says so after
+  the site ("news feed", "Substack", "Medium (title from the address)"); the
+  chart and the totals follow the choice, and without GDELT the chart
+  starts at the first chosen collection's month. On the compare page a term
+  can name its own collections (`kirk in:blogs` beside `kirk in:gdelt,feeds`).
+- **Known limits.** The mixed search lags GDELT by up to an hour (the table is
+  built hourly; GDELT alone is live). The source typeahead lists blogs by
+  host, and every Medium post is medium.com. The Substack catch-up to
+  2026-09-01 was still running when this was written, so the blogs' early
+  September fills in over about two days. The coverage notes on the page
+  (GDELT's June 2025 gap, the feeds' 12 September start) are for Alex to
+  write.
+
 ## Running it locally
 
 ```

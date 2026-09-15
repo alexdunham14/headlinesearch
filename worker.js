@@ -5,9 +5,19 @@
 // Everything else is a static asset. Nothing a visitor sends ever reaches
 // ClickHouse as SQL.
 //
+// Sources (src=gdelt,feeds,blogs; the proof of concept of 2026-09-15, see
+// scripts/unified_schema.sql): with no src, or src=gdelt, every query is
+// exactly the one it was before, on `headlines`. With any other choice the
+// range is cut at UNIFIED_START: GDELT's rows before it from `headlines`
+// (only if GDELT is chosen; the collectors have nothing earlier), and every
+// chosen source's rows from it on from `unified.headlines`, with the copy
+// flag that is exact for that choice. The two parts never share a timestamp,
+// so a page reads the newer part first and the older only for what is left.
+//
 // Secrets: CH_URL (e.g. https://db.newsheadlinesearch.com, a Cloudflare Tunnel to the box; a hostname, not a bare
 // IP, which Cloudflare refuses with error 1003), CH_PASSWORD (the `search`
-// user, who reads `headlines`, `labels` and `sources`). Binding:
+// user, who reads `headlines`, `labels`, `sources`, `unified.headlines` and
+// `unified.sources`). Binding:
 // SEARCH_LIMIT (rate limit per IP, see wrangler.jsonc: 120 a minute, where a
 // search with its chart is eight requests; the page retries what is refused).
 
@@ -34,6 +44,9 @@ const FIRST_DAY = "2019-10-01";
 // 2026-09-12: "hurricane" on three sites 5.8 s), so the list is capped and
 // the time limit is the backstop.
 const MAX_DOMAINS = 10;
+const SOURCES = ["gdelt", "feeds", "blogs"];
+const UNIFIED_START = "2026-09-01";
+const BEFORE_UNIFIED = "2026-08-31";
 
 export default {
   async fetch(request, env, ctx) {
@@ -82,7 +95,7 @@ export default {
 // sources. Takes no parameters, so one cache entry for everyone, an hour at
 // a time.
 async function stats(env, ctx, url) {
-  const key = new Request(`${url.origin}/api/stats?v=2`);
+  const key = new Request(`${url.origin}/api/stats?v=3`);
   const cache = caches.default;
   const hit = await cache.match(key);
   if (hit) return hit;
@@ -92,6 +105,11 @@ async function stats(env, ctx, url) {
     const n = await clickhouse(env, "SELECT uniqExact(domain) AS sources FROM sources FORMAT JSON", {}, { max_execution_time: 10 });
     const x = r.data[0];
     body = { first: x.first, last: x.last, rows: Number(x.rows), sources: Number(n.data[0].sources) };
+    // Per source in unified.headlines: its first and last article, rows and sites.
+    try {
+      const u = await clickhouse(env, "SELECT src, min(first) AS first, max(last) AS last, sum(n) AS rows, uniqExact(domain) AS sites FROM unified.sources GROUP BY src FORMAT JSON", {}, { max_execution_time: 10 });
+      body.unified = { start: UNIFIED_START, src: Object.fromEntries(u.data.map((y) => [y.src, { first: y.first, last: y.last, rows: Number(y.rows), sites: Number(y.sites) }])) };
+    } catch (e) {}
   } catch (e) {
     return json({ error: e.message }, 502);
   }
@@ -127,7 +145,14 @@ async function sources(request, env, ctx, url) {
     order = "startsWith(domain, {q:String}) DESC, n DESC, domain";
     limit = 12;
   }
-  const key = new Request(`${url.origin}/api/sources?${new URLSearchParams({ v: 1, q: letter ? "" : q, letter })}`);
+  let src;
+  try {
+    src = parseSrc(p);
+  } catch (e) {
+    return json({ error: e.message }, 400);
+  }
+  const mixed = !(src.length === 1 && src[0] === "gdelt");
+  const key = new Request(`${url.origin}/api/sources?${new URLSearchParams({ v: 1, q: letter ? "" : q, letter, ...(mixed ? { src: src.join(",") } : {}) })}`);
   const cache = caches.default;
   const hit = await cache.match(key);
   if (hit) return hit;
@@ -136,7 +161,20 @@ async function sources(request, env, ctx, url) {
   if (!success) return json({ error: "Too many searches; wait a minute.", rateLimited: true }, 429);
   let body;
   try {
-    const sql = `SELECT domain, sum(n) AS n, min(first) AS first, max(last) AS last FROM sources WHERE ${cond} GROUP BY domain ORDER BY ${order} LIMIT ${limit} FORMAT JSON`;
+    // With other sources chosen: GDELT's sites (all time) if GDELT is one,
+    // and the others' sites from unified.sources.
+    let from = "sources";
+    if (mixed) {
+      const parts = [];
+      if (src.includes("gdelt")) parts.push(`SELECT domain, toUInt64(n) AS n, toDateTime(first, 'UTC') AS first, toDateTime(last, 'UTC') AS last FROM sources WHERE ${cond}`);
+      const others = src.filter((x) => x !== "gdelt");
+      if (others.length) {
+        parts.push(`SELECT domain, n, first, last FROM unified.sources WHERE ${cond} AND src IN {others:Array(String)}`);
+        params.others = "[" + others.map((x) => `'${x}'`).join(",") + "]";
+      }
+      from = `(${parts.join(" UNION ALL ")})`;
+    }
+    const sql = `SELECT domain, sum(n) AS n, min(first) AS first, max(last) AS last FROM ${from} WHERE ${cond} GROUP BY domain ORDER BY ${order} LIMIT ${limit} FORMAT JSON`;
     const r = await clickhouse(env, sql, params, { max_execution_time: 10 });
     body = { sources: r.data.map((x) => [x.domain, Number(x.n), x.first.slice(0, 10), x.last.slice(0, 10)]) };
   } catch (e) {
@@ -173,12 +211,23 @@ function parse(p, totals = false) {
   const to = day(p.get("to"), "2100-01-01");
   if (from > to) throw new Error("from is after to");
   const sort = p.get("sort") === "oldest" ? "oldest" : "newest";
+  const src = parseSrc(p);
+  const mixed = !(src.length === 1 && src[0] === "gdelt");
   // Where the previous page stopped: its last timestamp (before= going
   // newest-first, after= going oldest-first) and how many rows at that
   // timestamp it already showed.
   const cursor = stamp(p.get(sort === "oldest" ? "after" : "before"));
   const skip = cursor ? Math.min(Math.max(parseInt(p.get("skip") || "0", 10) || 0, 0), MAX_SKIP) : 0;
-  return { q, mode, groups, from, to, domains, sort, cursor, skip, totals };
+  return { q, mode, groups, from, to, domains, sort, cursor, skip, totals, src, mixed };
+}
+
+// src=gdelt,feeds,blogs in any order, in SOURCES order; none is gdelt.
+function parseSrc(p) {
+  const given = (p.get("src") || "gdelt").toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
+  for (const x of given) if (!SOURCES.includes(x)) throw new Error("src is some of gdelt, feeds, blogs");
+  const src = SOURCES.filter((x) => given.includes(x));
+  if (!src.length) throw new Error("src is some of gdelt, feeds, blogs");
+  return src;
 }
 
 // A cursor timestamp is written compactly (20260911183000, GDELT's own
@@ -199,7 +248,7 @@ function day(s, fallback) {
 // v is the response shape: bump it when the shape changes, so entries cached
 // at the edge under the old shape (a day, for counts) are never served.
 function canonical(q) {
-  return new URLSearchParams({ v: 3, q: q.q, mode: q.mode, from: q.from, to: q.to, domain: q.domains.join(","), sort: q.sort, cursor: q.cursor, skip: q.skip }).toString();
+  return new URLSearchParams({ v: 3, q: q.q, mode: q.mode, from: q.from, to: q.to, domain: q.domains.join(","), sort: q.sort, cursor: q.cursor, skip: q.skip, ...(q.mixed ? { src: q.src.join(",") } : {}) }).toString();
 }
 
 // ----------------------------------------------------------------- queries
@@ -250,10 +299,19 @@ function fold(s) {
 // by_domain projection serves both; measured 2026-09-12: three sites
 // newest-first with no term 0.35 s). No term at all (a totals request, or a
 // search over some sites) is every headline in the range.
-function where(q, params) {
-  const conds = ["ts >= {from:Date}", "ts < {to:Date} + INTERVAL 1 DAY"];
-  params.from = q.from;
-  params.to = q.to;
+function where(q, params, part = { from: q.from, to: q.to, unified: false }) {
+  // The unified part has dates of its own ({ufrom}, {uto}), its source list,
+  // and, for GDELT and the feeds together, leaves out the feed rows whose URL
+  // GDELT also has (copy_news = 255).
+  const u = part.unified ? "u" : "";
+  const conds = [`ts >= {${u}from:Date}`, `ts < {${u}to:Date} + INTERVAL 1 DAY`];
+  params[u + "from"] = part.from;
+  params[u + "to"] = part.to;
+  if (part.unified) {
+    conds.push("src IN {src:Array(String)}");
+    params.src = "[" + q.src.map((x) => `'${x}'`).join(",") + "]"; // validated: SOURCES only
+    if (bothNews(q)) conds.push("copy_news != 255");
+  }
   if (q.domains.length === 1) {
     conds.push("domain = {domain:String}");
     params.domain = q.domains[0];
@@ -325,34 +383,73 @@ function settings(q, extra) {
 // offset, that costs the same for page fifty as for page one, and rows
 // inserted meanwhile do not shift the pages under the reader.
 async function runSearch(env, q) {
-  const params = { limit: PAGE, offset: q.skip };
-  let conds = where(q, params);
-  if (q.cursor) {
-    conds += q.sort === "oldest" ? " AND ts >= {cursor:DateTime}" : " AND ts <= {cursor:DateTime}";
-    params.cursor = q.cursor;
-  }
-  // The key is computed outside the limited query, for the page's rows only.
-  const sql = `SELECT ts, domain, url, title, story_key(domain, title) AS key FROM (SELECT ts, domain, url, title FROM headlines WHERE ${conds}
-    ORDER BY ts ${q.sort === "oldest" ? "ASC" : "DESC"} LIMIT {limit:UInt32} OFFSET {offset:UInt32}) FORMAT JSON`;
-  let r = await clickhouse(env, sql, params, settings(q, { max_execution_time: TIME_LIMIT }));
-  let elapsed = r.statistics.elapsed;
+  let r = await pageRows(env, q, PAGE);
+  let elapsed = r.elapsed;
   let page = collapse(r.data, PAGE);
   if (r.data.length === PAGE && page.groups.length < PAGE / 2) {
-    params.limit = WINDOW;
-    r = await clickhouse(env, sql, params, settings(q, { max_execution_time: TIME_LIMIT }));
-    elapsed += r.statistics.elapsed;
+    r = await pageRows(env, q, WINDOW);
+    elapsed += r.elapsed;
     page = collapse(r.data, PAGE);
   }
   let next = null;
-  if (page.used && (page.used < r.data.length || r.data.length === params.limit)) {
+  if (page.used && (page.used < r.data.length || r.data.length === r.limit)) {
     const last = r.data[page.used - 1].ts;
     let k = 0;
     for (let i = page.used - 1; i >= 0 && r.data[i].ts === last; i--) k++;
     if (last === q.cursor) k += q.skip;
     next = { [q.sort === "oldest" ? "after" : "before"]: last.replace(/\D/g, ""), skip: k };
   }
-  return { rows: page.groups, used: page.used, next, elapsed, timedOut: r.statistics.elapsed >= TIME_LIMIT };
+  return { rows: page.groups, used: page.used, next, elapsed, timedOut: r.last >= TIME_LIMIT };
 }
+
+// Up to `limit` rows from the cursor, in the page's order. GDELT alone is
+// one query on `headlines`. Other sources are the parts from parts(q), newer
+// part first going newest-first: each part is asked for what the earlier
+// parts left of the limit, and the rows already shown at the cursor's
+// timestamp are skipped in the part that holds that timestamp. On the
+// unified table a blog's key is kept apart from any news story's, since a
+// blog post never counts as a copy of one.
+async function pageRows(env, q, limit) {
+  const order = q.sort === "oldest" ? "ASC" : "DESC";
+  const out = { data: [], elapsed: 0, last: 0, limit };
+  let segs = parts(q);
+  if (q.sort !== "oldest") segs = segs.reverse();
+  const cursorDay = q.cursor.slice(0, 10);
+  for (const part of segs) {
+    if (q.cursor && (q.sort === "oldest" ? part.to < cursorDay : part.from > cursorDay)) continue;
+    const params = { limit: limit - out.data.length, offset: q.cursor && part.from <= cursorDay && cursorDay <= part.to ? q.skip : 0 };
+    let conds = where(q, params, part);
+    if (q.cursor) {
+      conds += q.sort === "oldest" ? " AND ts >= {cursor:DateTime}" : " AND ts <= {cursor:DateTime}";
+      params.cursor = q.cursor;
+    }
+    // The key is computed outside the limited query, for the page's rows only.
+    const sql = part.unified
+      ? `SELECT ts, domain, url, title, if(src = 'blogs', concat('blogs\t', key), key) AS key, src, platform FROM (SELECT ts, domain, url, title, key, src, platform FROM unified.headlines WHERE ${conds}
+    ORDER BY ts ${order} LIMIT {limit:UInt32} OFFSET {offset:UInt32}) FORMAT JSON`
+      : `SELECT ts, domain, url, title, story_key(domain, title) AS key FROM (SELECT ts, domain, url, title FROM headlines WHERE ${conds}
+    ORDER BY ts ${order} LIMIT {limit:UInt32} OFFSET {offset:UInt32}) FORMAT JSON`;
+    const r = await clickhouse(env, sql, params, settings(q, { max_execution_time: TIME_LIMIT }));
+    out.data.push(...r.data);
+    out.elapsed += r.statistics.elapsed;
+    out.last = r.statistics.elapsed;
+    if (out.data.length >= limit) break;
+  }
+  return out;
+}
+
+// The date ranges a query reads, oldest first: [{ from, to, unified }].
+// GDELT alone is the whole range on `headlines`, as always.
+function parts(q) {
+  if (!q.mixed) return [{ from: q.from, to: q.to, unified: false }];
+  const out = [];
+  if (q.src.includes("gdelt") && q.from <= BEFORE_UNIFIED) out.push({ from: q.from, to: q.to < BEFORE_UNIFIED ? q.to : BEFORE_UNIFIED, unified: false });
+  if (q.to >= UNIFIED_START) out.push({ from: q.from > UNIFIED_START ? q.from : UNIFIED_START, to: q.to, unified: true });
+  return out;
+}
+
+// GDELT and the feeds both chosen: the unified table's copy_news flag.
+const bothNews = (q) => q.src.includes("gdelt") && q.src.includes("feeds");
 
 // Collapse rows with the same story key into one, in order of first
 // appearance, up to `want` stories; `used` is how many rows that took, which
@@ -371,6 +468,7 @@ function collapse(rows, want) {
     if (!g) {
       if (groups.length === want) break;
       g = { ts: row.ts, domain: row.domain, url: row.url, title: row.title, n: 0, copies: [], sites: new Set([row.domain]) };
+      if (row.src) { g.src = row.src; g.platform = row.platform; }
       groups.push(g);
       seen.set(key, g);
     } else {
@@ -394,8 +492,19 @@ function collapse(rows, want) {
 // the range, by month.
 async function runCount(env, q) {
   const params = {};
-  const sql = `SELECT toStartOfMonth(ts) AS month, countIf(copy = 0) AS stories, countIf(copy <= 1) AS outlets, count() AS articles
-    FROM headlines WHERE ${where(q, params)} GROUP BY month ORDER BY month FORMAT JSON`;
+  // Other sources: the same count on each part, added up by month. On the
+  // unified table the flag is copy_news when GDELT and the feeds are both
+  // chosen (a blog row carries its own copy there too), else copy.
+  const segs = parts(q);
+  if (!segs.length) return { months: [], elapsed: 0, partial: false };
+  const one = (part) => {
+    const c = part.unified && bothNews(q) ? "copy_news" : "copy";
+    return `SELECT toStartOfMonth(ts) AS month, countIf(${c} = 0) AS stories, countIf(${c} <= 1) AS outlets, count() AS articles
+    FROM ${part.unified ? "unified.headlines" : "headlines"} WHERE ${where(q, params, part)} GROUP BY month`;
+  };
+  const sql = segs.length === 1 && !segs[0].unified
+    ? `${one(segs[0])} ORDER BY month FORMAT JSON`
+    : `SELECT month, sum(stories) AS stories, sum(outlets) AS outlets, sum(articles) AS articles FROM (${segs.map(one).join(" UNION ALL ")}) GROUP BY month ORDER BY month FORMAT JSON`;
   const r = await clickhouse(env, sql, params, settings(q, { max_execution_time: TIME_LIMIT, timeout_overflow_mode: "break" }));
   const partial = r.statistics.elapsed >= TIME_LIMIT;
   return { months: r.data.map((x) => [x.month, Number(x.stories), Number(x.outlets), Number(x.articles)]), elapsed: r.statistics.elapsed, partial };

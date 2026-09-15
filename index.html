@@ -66,6 +66,17 @@
       <ul id="chosen" class="chosen" aria-label="Chosen sources" hidden></ul>
     </div>
   </div>
+  <div class="opts">
+    <div class="group" role="group" aria-label="Include">
+      <span class="lbl">Include</span>
+      <span class="seg" id="srcs">
+        <label><input type="checkbox" name="src" value="gdelt" checked><span>GDELT news</span></label>
+        <label><input type="checkbox" name="src" value="feeds"><span>news feeds</span></label>
+        <label><input type="checkbox" name="src" value="blogs"><span>blogs</span></label>
+      </span>
+      <span class="since n" id="src-since"></span>
+    </div>
+  </div>
   <div class="tools">
     <button type="button" class="chip" id="clear-all">Clear all filters</button>
   </div>

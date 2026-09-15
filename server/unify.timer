@@ -1,0 +1,7 @@
+[Unit]
+Description=Build unified.headlines every hour, after the collectors
+[Timer]
+OnCalendar=*-*-* *:35:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target

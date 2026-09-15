@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Compare terms - News Headline Search</title>
-<meta name="description" content="Compare multiple headline searches as counts or as shares of all articles GDELT recorded.">
+<meta name="description" content="Compare multiple headline searches as counts or as shares of all articles recorded.">
 <link rel="stylesheet" href="styles.css">
 <link rel="icon" href="data:,">
 </head>
 <body>
 <h1><a href="./">News Headline Search</a></h1>
 <h2 class="sub">Compare terms</h2>
-<p class="lede">Compare multiple <a href="./">headline searches</a> as counts or as shares of all articles GDELT recorded. <span id="stats"></span></p>
+<p class="lede">Compare multiple <a href="./">headline searches</a> as counts or as shares of all articles recorded. <span id="stats"></span></p>
 
 <noscript><p>The chart needs JavaScript; the counts come from a database behind this page.</p></noscript>
 <form id="f" class="panel">
@@ -68,12 +68,12 @@
     <div id="chart" class="lines"></div>
     <p class="note" id="readout"></p>
     <p class="tools"><button type="button" class="chip" id="png">Save as image</button> <a id="chart-link" class="chip" href="#"></a></p>
-    <p class="note">A headline counts as one &ldquo;story&rdquo; on its first appearance in any source in one week. A headline counts for one &ldquo;outlet&rdquo; the first time it appears at a given source in one week. A headline counts for one &ldquo;article&rdquo; every time it appears whatsoever, regardless of previous appearances globally or for a given source. A share is of the same measure over every headline GDELT collected that month, or over the sources'. GDELT's set of sources is not constant (between 40 and 53 million articles a year since 2020, from a changing mix of sites), so a share across years is against a moving base; a term's share of one source's headlines is against that source's own output.</p>
+    <p class="note">A headline counts as one &ldquo;story&rdquo; on its first appearance in any source in one week. A headline counts for one &ldquo;outlet&rdquo; the first time it appears at a given source in one week. A headline counts for one &ldquo;article&rdquo; every time it appears whatsoever, regardless of previous appearances globally or for a given source. A share is of the same measure over every headline collected that month in the data the term includes, or over its sources'. GDELT's set of sources is not constant (between 40 and 53 million articles a year since 2020, from a changing mix of sites), so a share across years is against a moving base; a term's share of one source's headlines is against that source's own output.</p>
     <details class="tbl"><summary>as a list</summary><table id="table"></table></details>
   </section>
 </div>
 
-<footer id="meta">Data comes from GDELT and is ingested a few times per day. Headlines are page titles as GDELT recorded them. <a href="sources">All sources</a>. <a href="https://github.com/alexdunham14/headlinesearch">Source code</a>.</footer>
+<footer id="meta">Data comes primarily from GDELT and is ingested a few times per day; since September 2026 it also comes from news feeds and blogs, collected every hour. Headlines are page titles as GDELT recorded them, or titles as the news feeds and blogs published them. <a href="sources">All sources</a>. <a href="https://github.com/alexdunham14/headlinesearch">Source code</a>.</footer>
 <script src="lines.js"></script>
 <script src="compare.js"></script>
 </body>

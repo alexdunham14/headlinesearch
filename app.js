@@ -605,7 +605,9 @@
       $("src-since").textContent = `GDELT from ${fmtDay(loaded.first)}${u.feeds ? `; news feeds from ${fmtDay(loaded.src.feeds)}` : ""}${u.blogs ? `; blogs (Substack and Medium, in English) from ${fmtDay(loaded.src.blogs)}` : ""}.`;
     }
     $("n").textContent = s.rows >= 1e6 ? `${Math.round(s.rows / 1e6)} million` : fmt(s.rows);
-    $("stats").textContent = `${fmt(s.rows)} headlines from ${s.sources ? `${fmt(s.sources)} sources, ` : ""}${fmtDay(loaded.first)} to ${fmtDay(loaded.last)}.`
+    // Every headline held: GDELT's, and the news feeds' and blogs' from unified.headlines.
+    const held = s.rows + (s.unified?.src?.feeds?.rows || 0) + (s.unified?.src?.blogs?.rows || 0);
+    $("stats").textContent = `${fmt(held)} headlines, ${fmtDay(loaded.first)} to ${fmtDay(loaded.last)}.`
       + (loaded.first > "2019-10-02" ? " Earlier years are still being loaded." : "");
     $("from").min = $("to").min = loaded.first; $("from").max = $("to").max = loaded.last; linkDates();
   }).catch(() => { $("stats").textContent = "Could not reach the database just now."; });

@@ -124,11 +124,18 @@ async function stats(env, ctx, url) {
 // the text, those starting with it first, then the biggest; `letter=b`
 // gives every site whose name starts with that letter (`letter=0`, a
 // digit) in name order, at most 10,000 (the biggest letter has 7,200 as of
-// 2026-09-12). Either is milliseconds on 87 thousand rows; cached a day.
+// 2026-09-12), and `after=bbc.com` the next 10,000 after that name. Either
+// is milliseconds on 87 thousand rows; cached a day. With `src` other than
+// GDELT alone, the chosen collections' sites (GDELT's all time, the others'
+// from unified.sources), each row with a fifth field: the collections it
+// is in, as gdelt, feeds, substack, medium (all 12 thousand sites beginning
+// with t, with the blogs, are more than one answer, hence `after`).
 async function sources(request, env, ctx, url) {
   const p = url.searchParams;
   const q = (p.get("q") || "").trim().toLowerCase();
   const letter = (p.get("letter") || "").trim().toLowerCase();
+  const after = letter ? (p.get("after") || "").trim().toLowerCase() : "";
+  if (after.length > 100 || /[^a-z0-9.-]/.test(after)) return json({ error: "after is a site name like bbc.com" }, 400);
   const params = {};
   let cond, order, limit;
   if (letter) {
@@ -137,6 +144,10 @@ async function sources(request, env, ctx, url) {
     params.l = letter;
     order = "domain";
     limit = 10000;
+    if (after) {
+      cond += " AND domain > {after:String}";
+      params.after = after;
+    }
   } else {
     if (!q || q.length > 100 || /[^a-z0-9.-]/.test(q)) return json({ error: "q is part of a site name, like bbc" }, 400);
     cond = "domain LIKE {pat:String}";
@@ -152,7 +163,7 @@ async function sources(request, env, ctx, url) {
     return json({ error: e.message }, 400);
   }
   const mixed = !(src.length === 1 && src[0] === "gdelt");
-  const key = new Request(`${url.origin}/api/sources?${new URLSearchParams({ v: 1, q: letter ? "" : q, letter, ...(mixed ? { src: src.join(",") } : {}) })}`);
+  const key = new Request(`${url.origin}/api/sources?${new URLSearchParams({ v: 1, q: letter ? "" : q, letter, ...(after ? { after } : {}), ...(mixed ? { src: src.join(",") } : {}) })}`);
   const cache = caches.default;
   const hit = await cache.match(key);
   if (hit) return hit;
@@ -166,17 +177,19 @@ async function sources(request, env, ctx, url) {
     let from = "sources";
     if (mixed) {
       const parts = [];
-      if (src.includes("gdelt")) parts.push(`SELECT domain, toUInt64(n) AS n, toDateTime(first, 'UTC') AS first, toDateTime(last, 'UTC') AS last FROM sources WHERE ${cond}`);
+      if (src.includes("gdelt")) parts.push(`SELECT domain, toUInt64(n) AS n, toDateTime(first, 'UTC') AS first, toDateTime(last, 'UTC') AS last, 'gdelt' AS kind FROM sources WHERE ${cond}`);
       const others = src.filter((x) => x !== "gdelt");
       if (others.length) {
-        parts.push(`SELECT domain, n, first, last FROM unified.sources WHERE ${cond} AND src IN {others:Array(String)}`);
+        parts.push(`SELECT domain, n, first, last, toString(if(src = 'blogs', platform, src)) AS kind FROM unified.sources WHERE ${cond} AND src IN {others:Array(String)}`);
         params.others = "[" + others.map((x) => `'${x}'`).join(",") + "]";
       }
       from = `(${parts.join(" UNION ALL ")})`;
     }
-    const sql = `SELECT domain, sum(n) AS n, min(first) AS first, max(last) AS last FROM ${from} WHERE ${cond} GROUP BY domain ORDER BY ${order} LIMIT ${limit} FORMAT JSON`;
+    const kinds = mixed ? ", groupUniqArray(kind) AS kinds" : "";
+    const sql = `SELECT domain, sum(n) AS n, min(first) AS first, max(last) AS last${kinds} FROM ${from} WHERE ${cond} GROUP BY domain ORDER BY ${order} LIMIT ${limit} FORMAT JSON`;
     const r = await clickhouse(env, sql, params, { max_execution_time: 10 });
-    body = { sources: r.data.map((x) => [x.domain, Number(x.n), x.first.slice(0, 10), x.last.slice(0, 10)]) };
+    const KINDS = ["gdelt", "feeds", "substack", "medium"];
+    body = { sources: r.data.map((x) => [x.domain, Number(x.n), x.first.slice(0, 10), x.last.slice(0, 10), ...(mixed ? [KINDS.filter((k) => x.kinds.includes(k)).join(",")] : [])]) };
   } catch (e) {
     return json({ error: e.message }, 502);
   }

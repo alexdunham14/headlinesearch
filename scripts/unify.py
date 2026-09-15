@@ -258,7 +258,8 @@ def dirty_days(today):
 def sources():
     ch("DROP TABLE IF EXISTS unified.sources_new")
     ch("CREATE TABLE unified.sources_new AS unified.sources")
-    ch("INSERT INTO unified.sources_new SELECT src, domain, count(), min(ts), max(ts) FROM unified.headlines GROUP BY src, domain", HEAVY)
+    ch("INSERT INTO unified.sources_new (src, platform, domain, n, first, last) "
+       "SELECT src, platform, domain, count(), min(ts), max(ts) FROM unified.headlines GROUP BY src, platform, domain", HEAVY)
     ch("EXCHANGE TABLES unified.sources AND unified.sources_new")
     ch("DROP TABLE unified.sources_new")
 

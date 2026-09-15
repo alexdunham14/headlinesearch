@@ -60,18 +60,22 @@ ENGINE = MergeTree
 PARTITION BY toYYYYMMDD(ts)
 ORDER BY (ts, domain);
 
--- A row per (source, site) with its article count and first and last
--- article, rebuilt after every run; the Worker's source typeahead and
--- /api/stats read it beside default.sources.
+-- A row per (source, platform, site) with its article count and first and
+-- last article, rebuilt after every run; the Worker's source typeahead, the
+-- sources page and /api/stats read it beside default.sources. platform is
+-- substack or medium for a blog, so a site can be listed as either.
 CREATE TABLE IF NOT EXISTS unified.sources (
-  src    LowCardinality(String),
-  domain String,
-  n      UInt64,
-  first  DateTime('UTC'),
-  last   DateTime('UTC')
+  src      LowCardinality(String),
+  platform LowCardinality(String),
+  domain   String,
+  n        UInt64,
+  first    DateTime('UTC'),
+  last     DateTime('UTC')
 )
 ENGINE = MergeTree
 ORDER BY (domain, src);
+
+ALTER TABLE unified.sources ADD COLUMN IF NOT EXISTS platform LowCardinality(String) AFTER src;
 
 -- Staging, truncated around use: every feed and blog row from its start
 -- date, one per URL, filtered (stage); one day's rows with their keys

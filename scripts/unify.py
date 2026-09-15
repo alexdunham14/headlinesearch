@@ -15,7 +15,9 @@ Sources and their hard start dates (a source contributes nothing earlier):
          Service languages by URL section, then any title whose letters are
          mostly outside A-Z)
   blogs  from BLOGS_START: blogs.posts, one row per URL, English only
-         (Substack's own language field; Medium's guess)
+         (Substack's own language field; Medium's guess); the site without
+         a leading www., as GDELT names sites and the search page's source
+         box cleans what is typed (www.slowboring.com is slowboring.com)
 
 A run works out which days need building and builds them oldest first, each
 through a shadow table and REPLACE PARTITION:
@@ -142,7 +144,7 @@ WHERE t >= {lit(FEEDS_START)} AND t >= first_seen - INTERVAL {FEED_MAX_LAG_DAYS}
   AND NOT (domain IN ('bbc.com', 'bbc.co.uk') AND extract(url, '^https?://[^/]+/([^/]+)/') NOT IN ({sections}))""", HEAVY)
     ch(f"""
 INSERT INTO unified.stage (ts, src, platform, domain, url, title)
-SELECT t, 'blogs', platform, dm, url, tt FROM (
+SELECT t, 'blogs', platform, replaceRegexpOne(dm, '^www\\.', ''), url, tt FROM (
   SELECT platform, url,
          least(argMin(ts, seen), min(seen)) AS t,
          argMin(domain, seen) AS dm,

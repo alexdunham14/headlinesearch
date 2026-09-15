@@ -35,7 +35,11 @@
   let srcs = ["gdelt"];
   const srcParam = () => srcs.length === 1 && srcs[0] === "gdelt" ? "" : srcs.join(",");
   const parseSrcs = s => { const g = (s || "").toLowerCase().split(","); const out = SRCS.filter(x => g.includes(x)); return out.length ? out : ["gdelt"]; };
-  const renderSrcs = () => document.querySelectorAll("input[name=src]").forEach(i => { i.checked = srcs.includes(i.value); });
+  // The boxes, and the "All sources" link, which opens the sources page on the same collections.
+  const renderSrcs = () => {
+    document.querySelectorAll("input[name=src]").forEach(i => { i.checked = srcs.includes(i.value); });
+    document.querySelector(".sources .all").href = "sources?src=" + srcs.join(",");
+  };
   // The month chart for the current term: per "YYYY-MM" a triple [stories,
   // outlets, articles] (see renderChart), filled in window by window; the
   // bars show the measure chosen under the chart, as a count or as a share
@@ -513,7 +517,8 @@
   // ------------------------------------------------------------------ sources
   // The source box suggests sites as you type (from /api/sources: the sites
   // whose name contains the text, those starting with it first, then the
-  // biggest); a chosen site becomes a chip under the box, with an × to
+  // biggest, in the collections the Include boxes choose, with the
+  // collections a site is in when that is not GDELT alone); a chosen site becomes a chip under the box, with an × to
   // remove it. Enter on a typed name that is not in the list adds it as
   // typed, cleaned to a bare site name.
   function parseSources(s) {
@@ -542,23 +547,26 @@
   });
 
   const box = $("domain"), list = $("suggest");
-  const found = new Map(); // text typed -> the sites suggested, so retyping costs nothing
+  const found = new Map(); // collections and text typed -> the sites suggested, so retyping costs nothing
+  const KIND_NAMES = { gdelt: "GDELT", feeds: "news feed", substack: "Substack", medium: "Medium" };
   let sugg = [], active = -1, seq = 0, timer;
   const closeList = () => { list.hidden = true; list.innerHTML = ""; sugg = []; active = -1; box.setAttribute("aria-expanded", "false"); };
   async function suggest() {
     const text = cleanSource(box.value);
     if (!text) { closeList(); return; }
     const my = ++seq;
-    let r = found.get(text);
+    const fkey = `${srcParam()}|${text}`;
+    let r = found.get(fkey);
     if (!r) {
-      try { r = await fetch("/api/sources?q=" + encodeURIComponent(text)).then(res => res.json()); } catch (e) { r = {}; }
-      if (r.sources) found.set(text, r);
+      try { r = await fetch("/api/sources?q=" + encodeURIComponent(text) + (srcParam() ? "&src=" + srcParam() : "")).then(res => res.json()); } catch (e) { r = {}; }
+      if (r.sources) found.set(fkey, r);
     }
     if (my !== seq || cleanSource(box.value) !== text) return;
     sugg = (r.sources || []).filter(s => !sources.includes(s[0]));
     if (!sugg.length) { closeList(); return; }
     active = -1;
-    list.innerHTML = sugg.map((s, i) => `<li role="option" id="sug-${i}" data-i="${i}">${esc(s[0])} <span class="n">${fmtShort(s[1])} articles</span></li>`).join("");
+    const kinds = k => k && k !== "gdelt" ? ` · ${k.split(",").map(x => KIND_NAMES[x] || x).join(", ")}` : "";
+    list.innerHTML = sugg.map((s, i) => `<li role="option" id="sug-${i}" data-i="${i}">${esc(s[0])} <span class="n">${fmtShort(s[1])} articles${kinds(s[4])}</span></li>`).join("");
     list.hidden = false;
     box.setAttribute("aria-expanded", "true");
   }
@@ -635,6 +643,7 @@
       const on = [...document.querySelectorAll("input[name=src]:checked")].map(i => i.value);
       if (!on.length) { ev.target.checked = true; return; } // at least one collection
       srcs = SRCS.filter(x => on.includes(x));
+      renderSrcs();
       if (chart) wantCount = true; // a chart that was up is counted again for the new choice
       go();
     }

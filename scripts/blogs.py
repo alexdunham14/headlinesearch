@@ -923,9 +923,10 @@ def history_medium(cfg, day_from, day_to, limit=None, dry_run=False):
     """Every daily file from day_from to day_to not yet read, oldest first,
     at the platform's pace; resumable through blogs.files."""
     seen = utcnow()
-    cond = {} if dry_run else conditional_headers("medium")
+    # No conditional headers: a 304 (the hourly run read the index since it
+    # last changed) would leave the walk without the list of files.
     log = []
-    files = medium_index(cfg, cond, log, seen)
+    files = medium_index(cfg, {}, log, seen)
     if files is None:
         sys.exit(f"medium index: {log[-1]['label']} {log[-1]['error']}")
     state = {} if dry_run else load_files("medium")

@@ -11,6 +11,8 @@
   const fmt = n => n.toLocaleString();
   // 1.2M, 340k, 800: for the source suggestions.
   const fmtShort = n => n >= 1e6 ? `${+(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M` : n >= 1e3 ? `${+(n / 1e3).toFixed(n >= 1e4 ? 0 : 1)}k` : String(n);
+  // A share as a percentage with two significant digits (0.042%, 3.1%, 12%), as compare.js writes it.
+  const fmtPct = v => v === 0 ? "0%" : v >= 10 ? `${Math.round(v)}%` : `${+v.toPrecision(2)}%`;
   // Paging: the Worker collapses identical headlines and returns where the
   // page stopped (a timestamp and how many rows at it were shown); the next
   // page asks from there. `page` is only a counter.
@@ -27,11 +29,14 @@
   let sources = [];
   // The month chart for the current term: per "YYYY-MM" a triple [stories,
   // outlets, articles] (see renderChart), filled in window by window; the
-  // bars show the measure chosen under the chart.
+  // bars show the measure chosen under the chart, as a count or as a share
+  // of the same measure over every headline (or the sources') that month.
   let chart = null;
   const MEASURES = ["stories", "outlets", "articles"];
-  let measure = "stories";
+  const SCALES = ["count", "share"];
+  let measure = "stories", scale = "count";
   const setMeasure = m => { measure = MEASURES.includes(m) ? m : "stories"; document.querySelector(`input[name=measure][value=${measure}]`).checked = true; };
+  const setScale = s => { scale = SCALES.includes(s) ? s : "count"; document.querySelector(`input[name=scale][value=${scale}]`).checked = true; };
 
   // A search needs a term of two characters or more, or a source with an
   // empty box (everything from that site); one character is neither.
@@ -67,6 +72,7 @@
     chartOnly = p.get("view") === "chart";
     document.body.classList.toggle("chart-only", chartOnly);
     setMeasure(p.get("measure"));
+    setScale(p.get("scale"));
     linkDates();
     return true;
   }
@@ -75,23 +81,28 @@
   const chartKey = p => [p.get("q") || "", p.get("mode"), p.get("domain") || ""].join("\n");
   const title = p => `${p.get("q") || sources.join(", ")} - News Headline Search`;
   // The page's own URL for a search: the query, count=1 while the chart is up,
-  // the measure when not the default, and view=chart for the chart on its own
-  // (which implies the chart, and carries no paging cursor).
+  // the measure and scale when not the defaults, and view=chart for the chart
+  // on its own (which implies the chart, and carries no paging cursor).
   const pageUrl = (p, view = chartOnly) => {
     const u = new URLSearchParams(p);
-    for (const k of ["count", "measure", "view"]) u.delete(k);
+    for (const k of ["count", "measure", "scale", "view"]) u.delete(k);
     if (view) for (const k of ["before", "after", "skip", "page"]) u.delete(k);
     if (chart || wantCount || view) {
       if (!view) u.set("count", "1");
       if (measure !== "stories") u.set("measure", measure);
+      if (scale !== "count") u.set("scale", scale);
     }
     if (view) u.set("view", "chart");
     return "?" + u;
   };
+  // Whose headlines a share is of ("all", "bbc.com's", "the 3 sources'"), and
+  // the words a heading gains for a share.
+  const whose = () => !sources.length ? "all" : sources.length === 1 ? `${sources[0]}'s` : `the ${sources.length} sources'`;
+  const asShare = () => scale === "share" ? `, as a share of ${whose()} ${measure}` : "";
   // The chart's heading when it stands alone: the term, its mode, its sources.
   const describe = p => {
     const q = p.get("q"), d = sources.join(", ");
-    return `${q ? `“${q}”` : "Everything"}${p.get("mode") === "substring" ? " as a substring" : ""}${d ? ` ${q ? "on" : "from"} ${d}` : ""}, by month`;
+    return `${q ? `“${q}”` : "Everything"}${p.get("mode") === "substring" ? " as a substring" : ""}${d ? ` ${q ? "on" : "from"} ${d}` : ""}, by month${asShare()}`;
   };
 
   async function search(push) {
@@ -228,11 +239,12 @@
     else if (wantCount && rows.length) { wantCount = false; count(p); }
   }
 
-  // The compare page with this search's term, sources, measure and dates.
+  // The compare page with this search's term, sources, measure, scale and dates.
   function compareUrl(p) {
     const s = [p.get("q") || "", sources.length ? `site:${sources.join(",")}` : ""].join(" ").trim();
     const cp = new URLSearchParams({ s });
     if (measure !== "stories") cp.set("measure", measure);
+    if (scale !== "count") cp.set("scale", scale);
     if (p.get("from")) cp.set("from", p.get("from"));
     if (p.get("to")) cp.set("to", p.get("to"));
     return "/compare?" + cp;
@@ -254,78 +266,113 @@
 
   // The count runs in twelve-month windows, newest first, so the chart fills
   // in as they arrive (about a second a window since the text index); each
-  // window is cached at the edge for a day. The Worker refuses requests when
-  // an address has sent too many in a minute (a search with its chart is
-  // eight); windows refused that way are asked for again after the minute.
-  async function count(p) {
-    const key = chartKey(p);
-    chart = { key, counts: new Map(), partial: new Set(), running: true, failed: 0, limited: 0, wait: 0 };
+  // window is cached at the edge for a day. A share also needs the totals:
+  // the same windows with no term, from /api/totals as the compare page asks
+  // for them, kept per set of sources while the page is open, since they do
+  // not depend on the term. The Worker refuses requests when an address has
+  // sent too many in a minute (a search with its chart is eight, fifteen with
+  // the totals); requests refused that way are asked for again after the minute.
+  const totals = new Map(); // sources, sorted and comma-joined ("" for all) -> { counts, partial, have }
+  const totalsFor = dom => { if (!totals.has(dom)) totals.set(dom, { counts: new Map(), partial: new Set(), have: new Set() }); return totals.get(dom); };
+  const domainKey = p => (p.get("domain") || "").split(",").filter(Boolean).sort().join(",");
+
+  function count(p) {
+    chart = { key: chartKey(p), counts: new Map(), partial: new Set(), asked: new Set(), askedTotals: new Set(), running: false, failed: 0, limited: 0, wait: 0 };
     $("months").hidden = false;
     $("list-h").hidden = false;
     $("count").hidden = true;
     $("months-note").textContent = "counting…";
+    fill(p);
+  }
+
+  // Fetch what the chart lacks, one request at a time, newest window first:
+  // each window's count and, for a share, its totals. The next request is
+  // chosen afresh each time round, so switching to a share while the count
+  // runs adds the totals to the same run, and switching after it has finished
+  // starts a run for the totals alone.
+  async function fill(p) {
+    const c = chart;
+    if (!c || c.running) return;
+    c.running = true;
     await statsReady; // the chart spans what is loaded, so wait to know that
-    if (chart.key !== key) return;
-    const months = monthList();
-    const windows = [];
+    if (chart !== c) return;
+    const months = monthList(), windows = [];
     for (let i = months.length; i > 0; i -= 12) windows.push(months.slice(Math.max(0, i - 12), i));
-    renderChart(p);
-    const fetchWindow = async w => {
-      chart.now = w;
+    const dom = domainKey(p), t = totalsFor(dom);
+    const next = () => {
+      for (const w of windows) {
+        if (!c.asked.has(w[0])) { c.asked.add(w[0]); return { w }; }
+        if (scale === "share" && !t.have.has(w[0]) && !c.askedTotals.has(w[0])) { c.askedTotals.add(w[0]); return { w, totals: true }; }
+      }
+      return null;
+    };
+    const get = async job => {
+      const w = job.w;
+      c.now = w;
       renderChart(p);
-      const q = new URLSearchParams({ mode: p.get("mode"), from: w[0] + "-01", to: monthEnd(w[w.length - 1]) });
-      if (p.get("q")) q.set("q", p.get("q"));
-      if (p.get("domain")) q.set("domain", p.get("domain"));
+      const q = new URLSearchParams({ from: w[0] + "-01", to: monthEnd(w[w.length - 1]) });
+      if (!job.totals) { q.set("mode", p.get("mode")); if (p.get("q")) q.set("q", p.get("q")); }
+      if (dom) q.set("domain", dom);
       let r;
-      try { r = await fetch("/api/count?" + q).then(res => res.json()); } catch (e) { r = { error: "count failed" }; }
-      if (chart.key !== key || r.error) return r;
-      for (const m of w) chart.counts.set(m, [0, 0, 0]);
-      for (const [m, s, o, a] of r.months) chart.counts.set(m.slice(0, 7), [s, o, a]);
-      if (r.partial) for (const m of w) chart.partial.add(m);
+      try { r = await fetch((job.totals ? "/api/totals?" : "/api/count?") + q).then(res => res.json()); } catch (e) { r = { error: "count failed" }; }
+      if (r.error || (chart !== c && !job.totals)) return r; // totals belong to no one search, so they are kept anyway
+      const into = job.totals ? t : c;
+      for (const m of w) into.counts.set(m, [0, 0, 0]);
+      for (const [m, s, o, a] of r.months) into.counts.set(m.slice(0, 7), [s, o, a]);
+      if (r.partial) for (const m of w) into.partial.add(m);
+      if (job.totals) t.have.add(w[0]);
       return r;
     };
-    const refused = [];
-    for (const w of windows) {
-      if (chart.key !== key) return;
-      const r = await fetchWindow(w);
-      if (chart.key !== key) return;
-      if (r.error) { if (r.rateLimited) refused.push(w); else chart.failed++; }
-    }
-    if (refused.length) {
-      chart.now = null;
-      for (chart.wait = 30; chart.wait > 0; chart.wait--) {
+    const refused = [], retry = [];
+    for (;;) {
+      let job;
+      while ((job = retry.shift() || next())) {
+        const r = await get(job);
+        if (chart !== c) return;
+        if (!r.error) continue;
+        if (r.rateLimited && !job.retry) refused.push({ ...job, retry: true });
+        else { c.failed++; if (r.rateLimited) c.limited++; }
+      }
+      if (!refused.length) break;
+      c.now = null;
+      for (c.wait = 30; c.wait > 0; c.wait--) {
         renderChart(p);
         await new Promise(res => setTimeout(res, 1000));
-        if (chart.key !== key) return;
+        if (chart !== c) return;
       }
-      for (const w of refused) {
-        const r = await fetchWindow(w);
-        if (chart.key !== key) return;
-        if (r.error) { chart.failed++; if (r.rateLimited) chart.limited++; }
-      }
+      retry.push(...refused.splice(0));
     }
-    chart.running = false;
-    chart.now = null;
+    c.running = false;
+    c.now = null;
     renderChart(p);
   }
 
   // Three counts a month, from the copy flag the database keeps per row:
   // stories (a headline's first appearance anywhere in a week), outlets (its
   // first appearance on each site) and articles (every page). The bars show
-  // one; the note, the bar titles and the table give all three.
+  // one, as a count or as a share of the totals; the note, the bar titles and
+  // the table give all three.
   function renderChart(p) {
     const months = monthList();
     const c = chart.counts;
     const k = MEASURES.indexOf(measure);
+    const t = scale === "share" ? totalsFor(domainKey(p)) : null;
+    const share = (v, x, i) => x[i] ? v[i] / x[i] * 100 : 0;
+    // What a bar shows: the count, or the share once the month's totals are in.
+    const value = m => { const v = c.get(m); if (v == null) return null; if (!t) return v[k]; const x = t.counts.get(m); return x ? share(v, x, k) : null; };
+    const partial = m => chart.partial.has(m) || !!t?.partial.has(m);
     const from = p.get("from") || loaded.first, to = p.get("to") || loaded.last;
     const narrowed = p.get("from") || p.get("to");
     const total = [0, 0, 0];
-    let max = 1, peak = null, first = null, last = null;
+    let max = 0, peak = null, first = null, last = null, part = 0, base = 0;
     for (const m of months) {
       const v = c.get(m);
       if (v == null) continue;
       for (let i = 0; i < 3; i++) total[i] += v[i];
-      if (v[k] > max) { max = v[k]; peak = m; }
+      const x = t?.counts.get(m);
+      if (x) { part += v[k]; base += x[k]; }
+      const y = value(m);
+      if (y > max) { max = y; peak = m; }
       if (v[2] && !first) first = m;
       if (v[2]) last = m;
     }
@@ -334,24 +381,28 @@
     if (chart.running && chart.wait) note = `${fmt(total[k])} ${measure} so far; too many requests from here in a minute, so the rest wait ${chart.wait} s…`;
     else if (chart.running) note = `${fmt(total[k])} ${measure} so far; counting ${chart.now ? `${fmtMonth(chart.now[0])} to ${fmtMonth(chart.now[chart.now.length - 1])}` : ""}…`;
     else if (!total[2]) note = chart.failed ? "The count could not be completed." : "No matching articles in any month.";
+    else if (t) note = `${triple(total)}, ${fmtMonth(first)} to ${fmtMonth(last)}${base ? `; ${fmtPct(part / base * 100)} of ${whose()} ${measure}` : ""}${peak ? `, the highest share in ${fmtMonth(peak)} (${fmtPct(max)})` : ""}.`;
     else note = `${triple(total)}, ${fmtMonth(first)} to ${fmtMonth(last)}${peak ? `, most ${measure} in ${fmtMonth(peak)} (${fmt(max)})` : ""}.`;
-    if (!chart.running && chart.partial.size) note += " Months marked ~ hit the time limit, so their counts are low.";
+    if (!chart.running && months.some(partial)) note += " Months marked ~ hit the time limit, so their counts are low.";
     if (!chart.running && chart.failed) note += ` ${chart.failed} window${chart.failed === 1 ? "" : "s"} could not be counted${chart.limited ? " (too many searches from here in a minute; search again in a minute to fill them in)" : ""}.`;
     if (!chart.running && total[2]) note += " Click a month or a year to narrow the search to it.";
     $("months-note").textContent = note;
+    $("share-note").hidden = !t;
     $("compare").href = compareUrl(p);
-    $("months-h").textContent = chartOnly ? describe(p) : "Matches by month";
+    $("months-h").textContent = chartOnly ? describe(p) : `Matches by month${asShare()}`;
     $("chart-link").href = pageUrl(p, !chartOnly);
     $("chart-link").textContent = chartOnly ? "See the headlines and the full search" : "Linkable chart";
     $("chart").innerHTML = months.map(m => {
-      const v = c.get(m);
+      const v = c.get(m), y = value(m), x = t?.counts.get(m);
       const sel = narrowed && from <= m + "-01" && to >= monthEnd(m);
-      const label = v == null ? "not counted yet" : `${triple(v)}${chart.partial.has(m) ? " (partial)" : ""}`;
-      return `<a href="#" class="${sel ? "sel" : ""}" data-month="${m}" title="${fmtMonth(m)}: ${label}"><i style="height:${v && v[k] ? Math.max(1.5, v[k] / max * 100).toFixed(1) : 0}%"></i></a>`;
+      const label = v == null ? "not counted yet" : `${triple(v)}${x ? `; ${fmtPct(y)} of ${whose()} ${measure}` : ""}${partial(m) ? " (partial)" : ""}`;
+      return `<a href="#" class="${sel ? "sel" : ""}" data-month="${m}" title="${fmtMonth(m)}: ${label}"><i style="height:${y ? Math.max(1.5, y / max * 100).toFixed(1) : 0}%"></i></a>`;
     }).join("");
     $("years").innerHTML = months.map(m => `<span>${m.endsWith("-01") ? `<a href="#" data-year="${m.slice(0, 4)}">${m.slice(0, 4)}</a>` : ""}</span>`).join("");
+    // For a share each cell is the share with the count beside it, as on the compare page.
+    const cell = (m, i) => { const v = c.get(m), x = t?.counts.get(m); return `${partial(m) ? "~" : ""}${x ? `${fmtPct(share(v, x, i))} <span class="n">${fmt(v[i])}</span>` : fmt(v[i])}`; };
     $("months-table").innerHTML = `<tr><th></th>${MEASURES.map(x => `<th>${x}</th>`).join("")}</tr>` + months.filter(m => c.get(m)?.[2]).map(m =>
-      `<tr><td><a href="#" data-month="${m}">${fmtMonth(m)}</a></td>${[0, 1, 2].map(i => `<td>${chart.partial.has(m) ? "~" : ""}${fmt(c.get(m)[i])}</td>`).join("")}</tr>`).join("");
+      `<tr><td><a href="#" data-month="${m}">${fmtMonth(m)}</a></td>${[0, 1, 2].map(i => `<td>${cell(m, i)}</td>`).join("")}</tr>`).join("");
   }
 
   // A month or a year in the chart narrows the search to it; "+3 more" on a
@@ -386,6 +437,11 @@
     setMeasure(ev.target.value);
     const p = params();
     if (chart) { chartUrl(p); renderChart(p); }
+  });
+  $("scales").addEventListener("change", ev => {
+    setScale(ev.target.value);
+    const p = params();
+    if (chart) { chartUrl(p); renderChart(p); fill(p); } // fill fetches the totals a share still lacks, or joins the run in progress
   });
 
   // ------------------------------------------------------------------ sources

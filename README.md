@@ -50,7 +50,9 @@ turned up in the news, or what a particular outlet headlined that week.
   hundred local sites is one story and three hundred outlets. The three
   mean the same whatever the source filter (on one site, stories are the
   headlines that site had first). The bars show one measure, chosen under
-  the chart; the note and the table give all three.
+  the chart, as a count or, as on the compare page, as a share of all the
+  headlines that month (with sources chosen, of those sources' headlines);
+  the note and the table give all three.
 - Compare mode (`/compare`): up to six terms on one chart, month by month.
   Each term is a whole-word search, with OR between alternatives (`congo OR
   drc`) and, optionally, sources (`gaza site:bbc.com`, `gaza
@@ -62,7 +64,7 @@ turned up in the news, or what a particular outlet headlined that week.
   and the chart can be saved as an image with the URL on it. The same OR
   works in the search box, so a series can be clicked through to its
   headlines. The search page's "Compare to other terms" button carries its
-  term, sources, measure and dates across.
+  term, sources, measure, scale and dates across.
 - The database is fed by a scheduled ingest that reads GDELT's master file
   list, downloads new GKG files, keeps only date, source, URL and title,
   flags each row as a story, an outlet's copy or a repeat, and inserts
@@ -185,7 +187,11 @@ month, an outlet's articles against that outlet's articles. Its caveat is
 on the page: GDELT's set of sources is not constant (15 million rows in
 2019, 53 million in 2020, 42 million in 2025), so a share across years is
 against a changing base, and a term's share of one source's headlines is
-the steadier comparison. The image is the chart's SVG drawn again on white
+the steadier comparison. The search page's chart has the same share since
+2026-09-15: with the scale set to share it asks for `/api/totals` beside
+each window's count, one request at a time, and keeps the totals per set of
+sources while the page is open, so switching the scale back and forth or
+searching another term on the same sources asks for them once. The image is the chart's SVG drawn again on white
 with the series, their totals and the page's URL, rasterised in the
 browser.
 

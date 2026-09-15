@@ -74,7 +74,10 @@ input:focus-visible, .chip:focus-visible, .go:focus-visible, .big:focus-visible,
 .years span { flex: 1 1 0; min-width: 0; }
 .years a { color: inherit; text-decoration: none; white-space: nowrap; }
 .years a:hover { text-decoration: underline; }
-.measure { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; margin: .5rem 0 .6rem; }
+.measure { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 2rem; margin: .5rem 0 0; }
+.measure .pair { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; }
+/* The row of buttons under a chart: as much space below it as above */
+#months > .tools, #chartbox > .tools { margin: .8rem 0; }
 .tbl th { font-weight: bold; text-align: left; padding: 0 1rem .2rem 0; }
 .tbl { font-size: .9rem; color: var(--muted); }
 .tbl summary { cursor: pointer; }

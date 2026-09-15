@@ -85,15 +85,21 @@
     <p class="note" id="months-note"></p>
     <div class="chart" id="chart"></div>
     <div class="years" id="years"></div>
-    <p class="measure"><span class="lbl">Count</span>
+    <p class="measure">
+      <span class="pair"><span class="lbl">Count</span>
       <span class="seg" id="measures">
         <label><input type="radio" name="measure" value="stories" checked><span>stories</span></label>
         <label><input type="radio" name="measure" value="outlets"><span>outlets</span></label>
         <label><input type="radio" name="measure" value="articles"><span>articles</span></label>
-      </span>
-      <a id="chart-link" class="chip" href="#"></a>
+      </span></span>
+      <span class="pair"><span class="lbl">Scale</span>
+      <span class="seg" id="scales">
+        <label><input type="radio" name="scale" value="count" checked><span>counts</span></label>
+        <label><input type="radio" name="scale" value="share"><span>share of all headlines</span></label>
+      </span></span>
     </p>
-    <p class="note">A headline counts as one &ldquo;story&rdquo; on its first appearance in any source in one week. A headline counts for one &ldquo;outlet&rdquo; the first time it appears at a given source in one week. A headline counts for one &ldquo;article&rdquo; every time it appears whatsoever, regardless of previous appearances globally or for a given source.</p>
+    <p class="tools"><a id="chart-link" class="chip" href="#"></a></p>
+    <p class="note">A headline counts as one &ldquo;story&rdquo; on its first appearance in any source in one week. A headline counts for one &ldquo;outlet&rdquo; the first time it appears at a given source in one week. A headline counts for one &ldquo;article&rdquo; every time it appears whatsoever, regardless of previous appearances globally or for a given source.<span id="share-note" hidden> A share is of the same measure over every headline GDELT collected that month, or over the chosen sources'. GDELT's set of sources is not constant (between 40 and 53 million articles a year since 2020, from a changing mix of sites), so a share across years is against a moving base; a term's share of one source's headlines is against that source's own output.</span></p>
     <details class="tbl"><summary>as a list</summary><table id="months-table"></table></details>
   </section>
   <h2 id="list-h" hidden>Headlines</h2>

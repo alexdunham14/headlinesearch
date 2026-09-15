@@ -43,7 +43,8 @@ export default {
     if (url.pathname === "/api/stats") return stats(env, ctx, url);
     if (url.pathname === "/api/sources") return sources(request, env, ctx, url);
 
-    // Totals (compare mode's denominator) are the three counts a month with
+    // Totals (a share's denominator, on the compare page and under the search
+    // page's chart) are the three counts a month with
     // no term: the count query, parsed and cached the same way, minus the term.
     const totals = url.pathname === "/api/totals";
     const count = url.pathname === "/api/count" || totals;

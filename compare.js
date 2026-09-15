@@ -270,6 +270,7 @@
       if (ser.q) lp.set("q", ser.q);
       if (ser.domain) lp.set("domain", ser.domain);
       if (measure !== "stories") lp.set("measure", measure);
+      if (scale !== "count") lp.set("scale", scale);
       const share = scale === "share" && ser.tot[k] ? `, ${fmtPct(ser.total[k] / ser.tot[k] * 100)} of ${whose(ser)} ${measure}` : "";
       const peak = ser.peakMonth ? `, most in ${fmtMonth(ser.peakMonth)} (${fmt(ser.max)})` : "";
       return `<li>${sw}<a class="t" href="./?${lp}" title="The headlines">${esc(ser.text)}</a> <span class="note">${fmt(ser.total[k])} ${measure}${share}${peak}</span></li>`;

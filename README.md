@@ -49,10 +49,12 @@ turned up in the news, or what a particular outlet headlined that week.
   radio group is one story and one outlet, and a wire story on three
   hundred local sites is one story and three hundred outlets. The three
   mean the same whatever the source filter (on one site, stories are the
-  headlines that site had first). The bars show one measure, chosen under
-  the chart, as a count or, as on the compare page, as a share of all the
-  headlines that month (with sources chosen, of those sources' headlines);
-  the note and the table give all three.
+  headlines that site had first). The chart shows one measure, chosen under
+  it: as bars of counts, or as a line of its share of all the headlines
+  that month (with sources chosen, of those sources' headlines), drawn as
+  the compare page draws its lines, with a percentage axis, the narrowed
+  months shaded and a month's numbers on hover or tap; the note and the
+  table give all three.
 - Compare mode (`/compare`): up to six terms on one chart, month by month.
   Each term is a whole-word search, with OR between alternatives (`congo OR
   drc`) and, optionally, sources (`gaza site:bbc.com`, `gaza
@@ -107,6 +109,8 @@ Three pieces, in three places.
    into this.
 3. **The site** on Cloudflare Workers: `index.html`, `styles.css`, `app.js`
    as static assets, `compare.html` and `compare.js` for compare mode,
+   `lines.js` for the line chart (compare mode's, and the search page's
+   chart as a share),
    `sources.html` and `sources.js` for the sources page, `robots.txt`
    (since 2026-09-14: crawlers may read the site but not `/?domain=`, the
    sources page's link for each site, which Googlebot was rendering site by
@@ -191,7 +195,9 @@ the steadier comparison. The search page's chart has the same share since
 2026-09-15: with the scale set to share it asks for `/api/totals` beside
 each window's count, one request at a time, and keeps the totals per set of
 sources while the page is open, so switching the scale back and forth or
-searching another term on the same sources asks for them once. The image is the chart's SVG drawn again on white
+searching another term on the same sources asks for them once. As a share
+that chart is a line, not bars, from the same `lines.js` as compare's (a
+click with a mouse narrows to a month; a tap shows its numbers). The image is the chart's SVG drawn again on white
 with the series, their totals and the page's URL, rasterised in the
 browser.
 

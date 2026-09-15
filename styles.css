@@ -125,6 +125,7 @@ table.src td.r, table.src th.r { text-align: right; }
 .lines svg { display: block; width: 100%; height: auto; }
 .lines text.yr { cursor: pointer; }
 .lines text.yr:hover { text-decoration: underline; }
+#months .lines rect.cap { cursor: pointer; } /* on the search page a click on the line narrows to its month */
 #readout { min-height: 1.5em; margin: .5rem 0 .8rem; }
 .rd { white-space: nowrap; margin-left: .7em; }
 #chartbox .tbl { overflow-x: auto; }

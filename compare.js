@@ -4,8 +4,9 @@
 // each is counted by the same /api/count in the same twelve-month windows
 // as the search page's chart, so the two share the edge cache; a share is
 // against /api/totals, the three counts a month with no term. The lines are
-// SVG drawn here; "save as image" draws the same SVG again on white with the
-// legend and the page's URL and rasterises it in the browser.
+// SVG drawn by lines.js (which the search page's chart uses for a share);
+// "save as image" draws the same SVG again on white with the legend and the
+// page's URL and rasterises it in the browser.
 (function () {
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -24,15 +25,9 @@
   const MAX = 6;
   const MEASURES = ["stories", "outlets", "articles"];
   const SCALES = ["count", "share"];
-  // Six line colours on white and six on the dark background (the image is
-  // always drawn on white); text and gridline colours follow styles.css.
-  const PALETTE = {
-    light: ["#4d6d9a", "#c8553d", "#3f8f5f", "#8a5ea8", "#b8860b", "#2a9d8f"],
-    dark: ["#7aa2d8", "#f08a70", "#6fc590", "#c39ae0", "#e0b544", "#5fd1c1"],
-  };
-  const dark = matchMedia("(prefers-color-scheme: dark)");
-  const colours = () => PALETTE[dark.matches ? "dark" : "light"];
-  const theme = () => { const cs = getComputedStyle(document.documentElement); return { ink: cs.getPropertyValue("--ink").trim(), muted: cs.getPropertyValue("--muted").trim(), line: cs.getPropertyValue("--line").trim() }; };
+  // The line colours and the page's text and gridline colours come from
+  // lines.js, which draws the chart; the image is always drawn on white.
+  const { PALETTE, dark, colours, theme } = Lines;
   const PRINT = { ink: "#1a1a1a", muted: "#666", line: "#ddd" };
 
   let loaded = { first: "2019-10-01", last: day(new Date()) };
@@ -282,9 +277,9 @@
     // The chart, then the hover layer wired to it.
     const box = $("chart");
     const w = Math.max(280, box.clientWidth), h = w < 560 ? 200 : 260;
-    const g = chartSvg(w, h, months, s.series, cols, theme(), true);
+    const g = Lines.svg(w, h, months, s.series, { cols, th: theme(), live: true, fmtTick });
     box.innerHTML = g.svg;
-    hover(g, months, s.series, cols);
+    Lines.hover(box.querySelector("svg"), g, months, s.series, i => i == null ? readout(null) : readout(i, months, s.series, cols));
     readout(null);
 
     const cell = (ser, m) => {
@@ -303,85 +298,9 @@
   const what = () => scale === "share" ? `Results per month as a share of all ${measure} that month` : "Results per month";
   const whose = ser => { const ds = ser.domain ? ser.domain.split(",") : []; return !ds.length ? "all" : ds.length === 1 ? `${esc(ds[0])}'s` : `the ${ds.length} sources'`; };
 
-  // Axis ticks: a step of 1, 2, 2.5 or 5 times a power of ten, four or five of them.
-  function ticks(top) {
-    if (!(top > 0)) return [0, 1];
-    const raw = top / 4, p = Math.pow(10, Math.floor(Math.log10(raw)));
-    const step = [1, 2, 2.5, 5, 10].map(m => m * p).find(v => v >= raw);
-    const out = [];
-    for (let v = 0; v < top + step - 1e-9; v += step) out.push(+v.toPrecision(12));
-    return out;
-  }
   const fmtTick = v => scale === "share" ? `${+v.toPrecision(3)}%` : fmtShort(v);
 
-  // The chart as SVG markup, `w` by `h` pixels: gridlines with tick labels,
-  // year (or month) labels along the bottom, one path per series with gaps
-  // where a month is not counted yet, and, for the page, a hover layer (a
-  // rule and a dot per series) over a capture rectangle. Returns the markup
-  // and the geometry the hover needs.
-  function chartSvg(w, h, months, series, cols, th, live) {
-    const top = Math.max(0, ...series.flatMap(ser => ser.vals || []).filter(v => v != null));
-    const tk = ticks(top), ymax = tk[tk.length - 1];
-    const labels = tk.map(fmtTick);
-    const padL = 10 + Math.max(...labels.map(l => l.length)) * 7.5, padR = 12, padT = 10, padB = 22;
-    const iw = w - padL - padR, ih = h - padT - padB, n = months.length;
-    const x = i => padL + (n > 1 ? i / (n - 1) * iw : iw / 2);
-    const y = v => padT + ih - (ymax ? v / ymax * ih : 0);
-    let out = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" font-size="11" role="img" aria-label="Line chart">`;
-    tk.forEach((t, i) => {
-      out += `<line x1="${padL}" x2="${w - padR}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" stroke="${th.line}"/>`;
-      out += `<text x="${padL - 5}" y="${(y(t) + 3.5).toFixed(1)}" text-anchor="end" fill="${th.muted}">${labels[i]}</text>`;
-    });
-    // Years when the span is long; else every third month, or every month.
-    const step = n > 36 ? 12 : n > 12 ? 3 : 1;
-    months.forEach((m, i) => {
-      if (step === 12 ? !m.endsWith("-01") : i % step) return;
-      const [yy, mm] = m.split("-");
-      const label = step === 12 ? yy : `${MONTHS[mm - 1]} ${yy.slice(2)}`;
-      const anchor = n > 1 && i === n - 1 ? "end" : n > 1 && i === 0 ? "start" : "middle";
-      out += `<line x1="${x(i).toFixed(1)}" x2="${x(i).toFixed(1)}" y1="${padT + ih}" y2="${padT + ih + 4}" stroke="${th.muted}"/>`;
-      out += `<text x="${x(i).toFixed(1)}" y="${h - 6}" text-anchor="${anchor}" fill="${th.muted}"${step === 12 && live ? ` class="yr" data-year="${yy}"` : ""}>${label}</text>`;
-    });
-    series.forEach((ser, i) => {
-      const vals = ser.vals || [];
-      let d = "", pen = false;
-      vals.forEach((v, j) => {
-        if (v == null) { pen = false; return; }
-        d += `${pen ? "L" : "M"}${x(j).toFixed(1)} ${y(v).toFixed(1)}`;
-        pen = true;
-        if (vals[j - 1] == null && vals[j + 1] == null) out += `<circle cx="${x(j).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2" fill="${cols[i]}"/>`;
-      });
-      if (d) out += `<path d="${d}" fill="none" stroke="${cols[i]}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>`;
-    });
-    if (live) {
-      out += `<g class="hv" visibility="hidden"><line y1="${padT}" y2="${padT + ih}" stroke="${th.muted}" stroke-dasharray="2 3"/>${series.map((_, i) => `<circle r="3" fill="${cols[i]}"/>`).join("")}</g>`;
-      out += `<rect class="cap" x="${padL}" y="${padT}" width="${iw}" height="${ih}" fill="transparent"/>`;
-    }
-    return { svg: out + "</svg>", x, y, padL, iw };
-  }
-
-  // Hovering (or touching) the chart picks the nearest month: a rule, a dot
-  // per series, and the month's numbers in the line under the chart.
-  function hover(g, months, series, cols) {
-    const svg = $("chart").querySelector("svg");
-    const hv = svg.querySelector(".hv"), rule = hv.querySelector("line"), dots = hv.querySelectorAll("circle");
-    const show = ev => {
-      if (!months.length) return;
-      const px = ev.clientX - svg.getBoundingClientRect().left;
-      const i = Math.max(0, Math.min(months.length - 1, Math.round((px - g.padL) / g.iw * (months.length - 1))));
-      hv.setAttribute("visibility", "visible");
-      rule.setAttribute("x1", g.x(i)); rule.setAttribute("x2", g.x(i));
-      series.forEach((ser, j) => {
-        const v = ser.vals?.[i];
-        if (v == null) dots[j].setAttribute("r", 0);
-        else { dots[j].setAttribute("r", 3); dots[j].setAttribute("cx", g.x(i)); dots[j].setAttribute("cy", g.y(v)); }
-      });
-      readout(i, months, series, cols);
-    };
-    svg.addEventListener("pointermove", show);
-    svg.addEventListener("pointerdown", show);
-    svg.addEventListener("pointerleave", () => { hv.setAttribute("visibility", "hidden"); readout(null); });
-  }
+  // The month's numbers in the line under the chart, as the hover (lines.js) picks a month.
   function readout(i, months, series, cols) {
     if (i == null) { $("readout").textContent = "Hover or tap the chart for a month's numbers; click a year to narrow to it."; return; }
     const k = MEASURES.indexOf(measure), m = months[i];
@@ -419,7 +338,7 @@
       svg += `<rect x="${M}" y="${y - 10}" width="11" height="11" rx="2" fill="${l.c}"/><text x="${M + 17}" y="${y}" font-size="13" fill="${PRINT.ink}">${esc(l.text)}</text>`;
     }
     y += 14;
-    const g = chartSvg(W - 2 * M, CH, months, s.series, cols, PRINT, false);
+    const g = Lines.svg(W - 2 * M, CH, months, s.series, { cols, th: PRINT, live: false, fmtTick });
     svg += `<svg x="${M}" y="${y}" width="${W - 2 * M}" height="${CH}" overflow="visible">${g.svg.slice(g.svg.indexOf(">") + 1)}`;
     y += CH + 12;
     for (const l of urlLines) { y += 15; svg += `<text x="${M}" y="${y}" font-size="12" fill="${PRINT.muted}">${esc(l)}</text>`; }

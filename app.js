@@ -32,6 +32,7 @@
   // bars show the measure chosen under the chart, as a count or as a share
   // of the same measure over every headline (or the sources') that month.
   let chart = null;
+  let drawn = null; // the line chart as last drawn (its geometry and months), so a click on it can find its month
   const MEASURES = ["stories", "outlets", "articles"];
   const SCALES = ["count", "share"];
   let measure = "stories", scale = "count";
@@ -349,9 +350,9 @@
 
   // Three counts a month, from the copy flag the database keeps per row:
   // stories (a headline's first appearance anywhere in a week), outlets (its
-  // first appearance on each site) and articles (every page). The bars show
-  // one, as a count or as a share of the totals; the note, the bar titles and
-  // the table give all three.
+  // first appearance on each site) and articles (every page). The chart shows
+  // one, as bars of counts or as a line of its share of the totals; the note,
+  // the bar titles and the table give all three.
   function renderChart(p) {
     const months = monthList();
     const c = chart.counts;
@@ -385,20 +386,47 @@
     else note = `${triple(total)}, ${fmtMonth(first)} to ${fmtMonth(last)}${peak ? `, most ${measure} in ${fmtMonth(peak)} (${fmt(max)})` : ""}.`;
     if (!chart.running && months.some(partial)) note += " Months marked ~ hit the time limit, so their counts are low.";
     if (!chart.running && chart.failed) note += ` ${chart.failed} window${chart.failed === 1 ? "" : "s"} could not be counted${chart.limited ? " (too many searches from here in a minute; search again in a minute to fill them in)" : ""}.`;
-    if (!chart.running && total[2]) note += " Click a month or a year to narrow the search to it.";
+    if (!chart.running && total[2] && !t) note += " Click a month or a year to narrow the search to it."; // for a share the readout says so
     $("months-note").textContent = note;
     $("share-note").hidden = !t;
     $("compare").href = compareUrl(p);
     $("months-h").textContent = chartOnly ? describe(p) : `Matches by month${asShare()}`;
     $("chart-link").href = pageUrl(p, !chartOnly);
     $("chart-link").textContent = chartOnly ? "See the headlines and the full search" : "Linkable chart";
-    $("chart").innerHTML = months.map(m => {
-      const v = c.get(m), y = value(m), x = t?.counts.get(m);
-      const sel = narrowed && from <= m + "-01" && to >= monthEnd(m);
-      const label = v == null ? "not counted yet" : `${triple(v)}${x ? `; ${fmtPct(y)} of ${whose()} ${measure}` : ""}${partial(m) ? " (partial)" : ""}`;
-      return `<a href="#" class="${sel ? "sel" : ""}" data-month="${m}" title="${fmtMonth(m)}: ${label}"><i style="height:${y ? Math.max(1.5, y / max * 100).toFixed(1) : 0}%"></i></a>`;
-    }).join("");
-    $("years").innerHTML = months.map(m => `<span>${m.endsWith("-01") ? `<a href="#" data-year="${m.slice(0, 4)}">${m.slice(0, 4)}</a>` : ""}</span>`).join("");
+    // Counts are bars; a share is a line on a percentage axis, drawn by
+    // lines.js as the compare page's lines are, with the months the search is
+    // narrowed to shaded and a readout under it for the month under the pointer.
+    const sel = m => narrowed && from <= m + "-01" && to >= monthEnd(m);
+    const box = $("chart");
+    box.className = t ? "lines" : "chart";
+    $("years").hidden = !!t;
+    $("readout").hidden = !t;
+    if (t) {
+      const series = [{ vals: months.map(value) }];
+      const picked = months.map((m, i) => sel(m) ? i : -1).filter(i => i >= 0);
+      const w = Math.max(280, box.clientWidth), h = w < 560 ? 200 : 260;
+      drawn = Lines.svg(w, h, months, series, { cols: Lines.colours(), th: Lines.theme(), live: true, fmtTick: v => `${+v.toPrecision(3)}%`, band: picked.length ? [picked[0], picked[picked.length - 1]] : null });
+      drawn.months = months;
+      box.innerHTML = drawn.svg;
+      const say = i => {
+        if (i == null) {
+          $("readout").textContent = matchMedia("(hover: hover)").matches ? "Hover over the chart for a month's numbers; click a month or a year to narrow the search to it." : "Tap the chart for a month's numbers, or a year to narrow the search to it.";
+          return;
+        }
+        const m = months[i], v = c.get(m), x = t.counts.get(m);
+        $("readout").innerHTML = `<b>${fmtMonth(m)}</b> ` + (v && x ? `${partial(m) ? "~" : ""}${fmtPct(share(v, x, k))} of ${whose()} ${measure} (${fmt(v[k])} of ${fmtShort(x[k])})` : "not counted yet");
+      };
+      Lines.hover(box.querySelector("svg"), drawn, months, series, say);
+      say(null);
+    } else {
+      drawn = null;
+      box.innerHTML = months.map(m => {
+        const v = c.get(m);
+        const label = v == null ? "not counted yet" : `${triple(v)}${partial(m) ? " (partial)" : ""}`;
+        return `<a href="#" class="${sel(m) ? "sel" : ""}" data-month="${m}" title="${fmtMonth(m)}: ${label}"><i style="height:${v && v[k] ? Math.max(1.5, v[k] / max * 100).toFixed(1) : 0}%"></i></a>`;
+      }).join("");
+      $("years").innerHTML = months.map(m => `<span>${m.endsWith("-01") ? `<a href="#" data-year="${m.slice(0, 4)}">${m.slice(0, 4)}</a>` : ""}</span>`).join("");
+    }
     // For a share each cell is the share with the count beside it, as on the compare page.
     const cell = (m, i) => { const v = c.get(m), x = t?.counts.get(m); return `${partial(m) ? "~" : ""}${x ? `${fmtPct(share(v, x, i))} <span class="n">${fmt(v[i])}</span>` : fmt(v[i])}`; };
     $("months-table").innerHTML = `<tr><th></th>${MEASURES.map(x => `<th>${x}</th>`).join("")}</tr>` + months.filter(m => c.get(m)?.[2]).map(m =>
@@ -417,16 +445,29 @@
       ex.textContent = open ? "fewer" : `+${ex.nextElementSibling.querySelectorAll("a").length} more`;
       return;
     }
-    const a = ev.target.closest("a[data-month], a[data-year]");
-    if (!a) return;
+    const a = ev.target.closest("a[data-month], a[data-year], #chart text[data-year]");
+    let month = a?.dataset.month;
+    const year = a?.dataset.year;
+    // On the line chart a click narrows to the nearest month, with a mouse
+    // only: a tap there shows the month's numbers, as on the compare page.
+    if (!a && drawn && pointer === "mouse" && ev.target.closest("#chart rect.cap")) month = drawn.months[Lines.at(ev.target.closest("svg"), drawn, drawn.months.length, ev.clientX)];
+    if (!month && !year) return;
     ev.preventDefault();
-    if (a.dataset.month) { $("from").value = a.dataset.month + "-01"; $("to").value = monthEnd(a.dataset.month); }
-    else { $("from").value = a.dataset.year + "-01-01"; $("to").value = a.dataset.year + "-12-31"; }
+    if (month) { $("from").value = month + "-01"; $("to").value = monthEnd(month); }
+    else { $("from").value = year + "-01-01"; $("to").value = year + "-12-31"; }
     linkDates();
     if (chartOnly) { location.href = pageUrl(params(), false); return; } // from the chart alone, a month opens the full search narrowed to it
     reset();
     search(true);
   });
+  let pointer = "mouse";
+  $("chart").addEventListener("pointerdown", ev => { pointer = ev.pointerType; });
+  // The line chart is drawn to the box's width in the colour scheme's
+  // colours, so it is drawn again when either changes.
+  const redraw = () => { if (chart && scale === "share") renderChart(params()); };
+  let resizeTimer;
+  addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(redraw, 150); });
+  Lines.dark.addEventListener("change", redraw);
   const chartUrl = p => history.replaceState(null, "", pageUrl(p));
   $("count").onclick = () => {
     const p = params();

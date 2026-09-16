@@ -19,7 +19,25 @@
        from starting. -->
   <max_connections>256</max_connections>
   <max_concurrent_queries>16</max_concurrent_queries>
-  <query_log><ttl>event_date + INTERVAL 14 DAY</ttl></query_log>
+  <!-- The server log at information, not the package's trace: trace and
+       debug were over 99% of its lines (every part read, merge and insert).
+       Trace also held the one line per Worker request with the search words
+       (DynamicQueryHandler's "Request URI"), and a per-logger level cannot
+       keep it, since the file channel drops whatever is under its own level
+       (tried 2026-09-16). query_log keeps the words instead (the query text
+       with the parameters substituted), for 30 days rather than 14: about
+       as far back as the rotated trace files reached. A change to the TTL
+       here needs the same ALTER TABLE system.query_log MODIFY TTL on the
+       running server, or a restart renames the old table to query_log_0;
+       run it with SETTINGS materialize_ttl_after_modify = 0 (rewriting the
+       table's TTL ran out of memory on this box, and a TTL merge reads the
+       table's current TTL anyway).
+       Since 2026-09-16: Alex chose the quieter log with the search record
+       kept. -->
+  <logger>
+    <level>information</level>
+  </logger>
+  <query_log><ttl>event_date + INTERVAL 30 DAY</ttl></query_log>
   <trace_log remove="1"/>
   <metric_log remove="1"/>
   <asynchronous_metric_log remove="1"/>

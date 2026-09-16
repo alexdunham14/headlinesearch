@@ -417,12 +417,13 @@ GDELT's and from the news collector's. The root repo's
   leaderboards (`/api/v1/category/public/ID/all`, 33 categories of about
   22 pages) list them with their domain, so a weekly sweep adds them and
   they are polled through the archive API with the ETag stored last time,
-  so an unchanged publication costs a 304. Each is polled about as often
-  as it posts (its average gap over its last ten posts, counting the time
-  since the newest, kept between 3 and 48 hours and spread a fifth either
-  way; `custom_poll`): about 1,800 requests a day for some 1,200 new posts,
-  where polling all 2,500 every three hours (until 2026-09-16) took 20,000.
-  The price is lateness, an estimated 13 hours on average against 1.5. The
+  so an unchanged publication costs a 304. Each is polled twice as often
+  as it posts (half its average gap over its last ten posts, counting the
+  time since the newest, kept between 3 and 24 hours and spread a fifth
+  either way; `custom_poll`): about 3,400 requests a day for some 1,200 new
+  posts, where polling all 2,500 every three hours (until 2026-09-16) took
+  20,000. The price is lateness, an estimated 6.5 hours on average against
+  1.5. The
   first run reads only publications that posted in the last day
   (`first_run_days`); the rest are recorded for the history walk.
 - **Medium.** `medium.com/sitemap/sitemap.xml` indexes one file per day of

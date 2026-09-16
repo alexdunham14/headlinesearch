@@ -20,7 +20,7 @@ writer list has to be maintained because the platform publishes one:
   (/api/v1/category/public/ID/all, 33 categories, about 22 pages of 25)
   list them with their domain, so a weekly sweep of the leaderboards adds
   them, and they are polled through the archive API's ETag (a 304 when
-  nothing changed) instead of the index, each about as often as it posts.
+  nothing changed) instead of the index, each at a pace set by how often it posts.
 - Medium. medium.com/sitemap/sitemap.xml indexes one file per day of every
   post, back to 2012, about 10,000 a day; the file for a day appears the
   next morning. The only title in it is the URL slug (lower case, no
@@ -455,7 +455,7 @@ def custom_intervals(cfg):
     together do not come due together. One with no posts stored gets
     max_hours."""
     c = cfg.get("custom_poll", {})
-    lo, hi, per = c.get("min_hours", 3), c.get("max_hours", 48), c.get("per_post", 1.0)
+    lo, hi, per = c.get("min_hours", 3), c.get("max_hours", 24), c.get("per_post", 0.5)
     q = """
 SELECT site, dateDiff('minute', arrayMin(last), now()) / 60 / length(last)
 FROM (

@@ -394,8 +394,9 @@ def read_feed(url, etag="", last_modified="", robots=None, depth=0, news_only=Fa
             return ("nested-index", fmt, [], f)
         children = sorted(items, key=lambda i: i["ts"] or dt.datetime.min, reverse=True)
         # Prefer children that call themselves news; then the newest by lastmod.
-        news = [c for c in children if "news" in c["url"].lower()]
-        rest = [c for c in children if "news" not in c["url"].lower()]
+        # The path only: on buffalonews.com every child has news in its URL.
+        news = [c for c in children if "news" in urllib.parse.urlsplit(c["url"]).path.lower()]
+        rest = [c for c in children if c not in news]
         news_first = news if news_only and news else news + rest
         out = []
         for c in news_first[:MAX_CHILD_SITEMAPS]:

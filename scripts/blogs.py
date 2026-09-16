@@ -20,7 +20,7 @@ writer list has to be maintained because the platform publishes one:
   (/api/v1/category/public/ID/all, 33 categories, about 22 pages of 25)
   list them with their domain, so a weekly sweep of the leaderboards adds
   them, and they are polled through the archive API's ETag (a 304 when
-  nothing changed) instead of the index.
+  nothing changed) instead of the index, each about as often as it posts.
 - Medium. medium.com/sitemap/sitemap.xml indexes one file per day of every
   post, back to 2012, about 10,000 a day; the file for a day appears the
   next morning. The only title in it is the URL slug (lower case, no
@@ -82,6 +82,7 @@ import sys
 import threading
 import time
 import urllib.parse
+import zlib
 from collections import defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -440,6 +441,44 @@ def fetch_row(platform, target, kind, label, f, items, seen, new=0, changed=0):
             "etag": (f.etag or "")[:200], "last_modified": (f.last_modified or "")[:100], "error": (f.error or "")[:300]}
 
 
+def custom_intervals(cfg):
+    """How long to leave each publication on its own domain between polls,
+    as a function of its name giving a timedelta. The index does not track
+    these, so until 2026-09-16 they were polled every three hours: about
+    20,000 requests a day for some 1,200 new posts, and every publication
+    polled in one run came due in the same later run. Now the gap is the
+    publication's own pace: the time
+    from the oldest of its last ten stored posts to now, over their number
+    (so a publication that stops posting is polled less and less), times
+    per_post, kept between min_hours and max_hours, then spread by up to a
+    fifth either way by a hash of the name, so that publications polled
+    together do not come due together. One with no posts stored gets
+    max_hours."""
+    c = cfg.get("custom_poll", {})
+    lo, hi, per = c.get("min_hours", 3), c.get("max_hours", 48), c.get("per_post", 1.0)
+    q = """
+SELECT site, dateDiff('minute', arrayMin(last), now()) / 60 / length(last)
+FROM (
+  SELECT site, arraySlice(arrayReverseSort(groupArray(t)), 1, 10) AS last
+  FROM (
+    SELECT site, url, min(ts) AS t FROM blogs.posts
+    WHERE platform = 'substack' AND ts <= now()
+      AND site IN (SELECT site FROM blogs.sites FINAL WHERE platform = 'substack' AND domain != '')
+    GROUP BY site, url)
+  GROUP BY site)
+FORMAT TSV"""
+    gaps = {}
+    for line in ch(q).splitlines():
+        site, gap = line.split("\t")
+        gaps[site] = float(gap)
+
+    def every(site):
+        hours = min(max(gaps[site] * per, lo), hi) if site in gaps else hi
+        spread = 0.8 + 0.4 * (zlib.crc32(site.encode()) % 1000) / 1000
+        return dt.timedelta(hours=hours * spread)
+    return every
+
+
 def archive_url(base_url, offset=0, limit=ARCHIVE_PAGE):
     return f"{base_url.rstrip('/')}/api/v1/archive?sort=new&offset={offset}&limit={limit}"
 
@@ -556,10 +595,11 @@ def run_substack(cfg, dry_run=False, limit=None):
                 continue    # polled through its own archive below
             elif lastmod > st.lastmod:
                 queue.append((site, "index", lastmod))
-    # Custom-domain publications: every few hours, through their archive's ETag.
-    due = seen - dt.timedelta(hours=cfg.get("custom_every_hours", 3))
+    # Custom-domain publications: each about as often as it posts, through
+    # its archive's ETag.
+    every = custom_intervals(cfg) if state else None
     for site, st in state.items():
-        if st.domain and st.fetched < due and st.status not in ("blocked", "http 404", "http 410"):
+        if st.domain and st.status not in ("blocked", "http 404", "http 410") and st.fetched < seen - every(site):
             queue.append((site, "custom", None))
     if limit:
         queue = queue[:limit]

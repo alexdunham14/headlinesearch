@@ -468,6 +468,10 @@ WHERE NOT has(e.titles, s.title)
 # ------------------------------------------------------------------- the run
 
 BLOX_RE = re.compile(r"/search/\?f=rss|/tncms/")
+# Seconds between BLOX feeds. Four from 2026-09-15; eight since 2026-09-17,
+# after the night of 09-16 had 23% of the group's fetches answer 429 (10% the
+# night before). A run's BLOX queue is about ten minutes.
+BLOX_GAP = 8
 
 
 def load_feeds(path=FEEDS_PATH):
@@ -475,7 +479,7 @@ def load_feeds(path=FEEDS_PATH):
     feed of a site on the BLOX platform (TownNews: most Lee Enterprises and
     CNHI dailies) is in one group, because the platform rate-limits an
     address across all its sites and twenty of them fetched at once answer
-    429; four seconds apart, they answer. A site is BLOX if one of its
+    429; spaced out (BLOX_GAP), most answer. A site is BLOX if one of its
     entries says "platform": "blox" or one of its feeds is the platform's
     latest-articles feed. The feed URL alone is not enough: that feed was
     dropped wherever a sitemap exists (2026-09-13), which left the group
@@ -517,7 +521,7 @@ def run(feeds, dry_run=False, workers=8):
         out = []
         for i, f in enumerate(fs):
             if i and f["group"] == "blox":
-                time.sleep(4)
+                time.sleep(BLOX_GAP)
             out.append(one_feed(f, cond, robots))
         return out
 

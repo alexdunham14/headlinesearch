@@ -355,10 +355,13 @@ else). Nothing on the site reads it yet. It never fetches an article page.
   `journalctl -u collect` has each run's one-line summary and its list of
   feeds that did not answer `ok` or `304`. Sites on the BLOX platform
   (TownNews: most Lee Enterprises and CNHI dailies, 72 of them, marked
-  `"platform": "blox"` in `feeds.json`) are fetched one at a time, four
-  seconds apart, since the platform rate-limits an address across all its
-  papers, and their news sitemap (`/tncms/sitemap/news.xml`) is read
-  directly rather than through the sitemap index.
+  `"platform": "blox"` in `feeds.json`) are fetched one at a time, eight
+  seconds apart (four until 2026-09-17; `BLOX_GAP` in `collect.py`), since
+  the platform rate-limits an address across all its papers, and their news
+  sitemap (`/tncms/sitemap/news.xml`) is read directly rather than through
+  the sitemap index. The platform's 429 is a 67-byte answer from its edge;
+  a missed hour comes back in the next good fetch, since each news sitemap
+  holds about two days.
 - **The lost years, from the Wayback Machine.** `scripts/backfill.py` walks
   the CDX index for a feed's captures (at most one an hour; the NYT World
   feed has about 750 a year for 2022 to 2024), fetches each as archived

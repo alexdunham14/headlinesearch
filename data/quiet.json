@@ -1,9 +1,17 @@
 {
- "day": "2026-09-21",
+ "day": "2026-09-28",
  "sites": {
+  "albawaba.com": {
+   "why": "dark",
+   "baseline": 104,
+   "recent": 0,
+   "last": "2026-09-13",
+   "rows": 72384,
+   "since": "2026-09-28"
+  },
   "bangkokpost.com": {
    "why": "dark",
-   "baseline": 171,
+   "baseline": 158,
    "recent": 0,
    "last": "2026-08-25",
    "rows": 151070,
@@ -11,7 +19,7 @@
   },
   "benzinga.com": {
    "why": "dark",
-   "baseline": 287,
+   "baseline": 186,
    "recent": 0,
    "last": "2026-08-06",
    "rows": 342285,
@@ -19,23 +27,23 @@
   },
   "boerse-social.com": {
    "why": "thinning",
-   "baseline": 673,
-   "recent": 0,
-   "last": "2026-09-12",
-   "rows": 7315,
+   "baseline": 505,
+   "recent": 8,
+   "last": "2026-09-27",
+   "rows": 7332,
    "since": "2026-09-14"
   },
-  "breakingnews.ie": {
+  "bssnews.net": {
    "why": "thinning",
-   "baseline": 273,
-   "recent": 0,
-   "last": "2026-09-10",
-   "rows": 108156,
-   "since": "2026-09-21"
+   "baseline": 698,
+   "recent": 108,
+   "last": "2026-09-15",
+   "rows": 158686,
+   "since": "2026-09-28"
   },
   "chelmsfordweeklynews.co.uk": {
    "why": "dark",
-   "baseline": 171,
+   "baseline": 124,
    "recent": 0,
    "last": "2026-08-14",
    "rows": 115042,
@@ -43,71 +51,31 @@
   },
   "digitaltrends.com": {
    "why": "dark",
-   "baseline": 128,
+   "baseline": 109,
    "recent": 0,
    "last": "2026-09-03",
    "rows": 42891,
    "since": "2026-09-21"
   },
+  "f4wonline.com": {
+   "why": "thinning",
+   "baseline": 209,
+   "recent": 40,
+   "last": "2026-09-18",
+   "rows": 34794,
+   "since": "2026-09-28"
+  },
   "fandompost.com": {
    "why": "dark",
-   "baseline": 165,
+   "baseline": 138,
    "recent": 0,
    "last": "2026-09-02",
    "rows": 50583,
    "since": "2026-09-21"
   },
-  "financialcontent.com": {
-   "why": "thinning",
-   "baseline": 426,
-   "recent": 52,
-   "last": "2026-09-21",
-   "rows": 220509,
-   "since": "2026-09-14"
-  },
-  "forbes.com": {
-   "why": "thinning",
-   "baseline": 1158,
-   "recent": 148,
-   "last": "2026-09-18",
-   "rows": 625856,
-   "since": "2026-09-14"
-  },
-  "gananoquereporter.com": {
-   "why": "dark",
-   "baseline": 109,
-   "recent": 0,
-   "last": "2026-08-29",
-   "rows": 40328,
-   "since": "2026-09-13"
-  },
-  "geeky-gadgets.com": {
-   "why": "dark",
-   "baseline": 107,
-   "recent": 0,
-   "last": "2026-08-25",
-   "rows": 48625,
-   "since": "2026-09-13"
-  },
-  "ghanamma.com": {
-   "why": "thinning",
-   "baseline": 284,
-   "recent": 0,
-   "last": "2026-09-12",
-   "rows": 123031,
-   "since": "2026-09-21"
-  },
-  "independent.com.mt": {
-   "why": "dark",
-   "baseline": 121,
-   "recent": 0,
-   "last": "2026-09-06",
-   "rows": 25070,
-   "since": "2026-09-21"
-  },
   "indianexpress.com": {
    "why": "dark",
-   "baseline": 412,
+   "baseline": 170,
    "recent": 0,
    "last": "2026-07-31",
    "rows": 484102,
@@ -115,103 +83,63 @@
   },
   "itnewsonline.com": {
    "why": "dark",
-   "baseline": 162,
+   "baseline": 113,
    "recent": 0,
    "last": "2026-08-10",
    "rows": 131433,
    "since": "2026-09-13"
   },
-  "katc.com": {
-   "why": "dark",
-   "baseline": 103,
-   "recent": 0,
-   "last": "2026-09-01",
-   "rows": 47394,
-   "since": "2026-09-21"
-  },
   "keralakaumudi.com": {
    "why": "dark",
-   "baseline": 174,
+   "baseline": 145,
    "recent": 0,
    "last": "2026-09-03",
    "rows": 6014,
    "since": "2026-09-14"
   },
-  "manilatimes.net": {
-   "why": "thinning",
-   "baseline": 2810,
-   "recent": 6,
-   "last": "2026-09-17",
-   "rows": 384701,
-   "since": "2026-09-14"
-  },
-  "mb.com.ph": {
-   "why": "dark",
-   "baseline": 118,
-   "recent": 0,
-   "last": "2026-09-07",
-   "rows": 182277,
-   "since": "2026-09-21"
-  },
-  "motorsport.com": {
-   "why": "dark",
-   "baseline": 105,
-   "recent": 0,
-   "last": "2026-08-27",
-   "rows": 23599,
-   "since": "2026-09-13"
-  },
-  "nationalaccordnewspaper.com": {
-   "why": "dark",
-   "baseline": 100,
-   "recent": 0,
-   "last": "2026-08-16",
-   "rows": 54321,
-   "since": "2026-09-13"
-  },
   "newkerala.com": {
    "why": "thinning",
-   "baseline": 1008,
+   "baseline": 763,
    "recent": 22,
    "last": "2026-09-17",
    "rows": 245592,
    "since": "2026-09-13"
   },
   "news.am": {
-   "why": "thinning",
-   "baseline": 257,
+   "why": "dark",
+   "baseline": 197,
    "recent": 0,
    "last": "2026-09-10",
    "rows": 93926,
    "since": "2026-09-21"
   },
-  "pembrokeobserver.com": {
+  "proactiveinvestors.co.uk": {
    "why": "dark",
-   "baseline": 116,
+   "baseline": 140,
    "recent": 0,
-   "last": "2026-08-29",
-   "rows": 38995,
-   "since": "2026-09-13"
+   "last": "2026-09-12",
+   "rows": 61702,
+   "since": "2026-09-28"
   },
   "semissourian.com": {
    "why": "dark",
-   "baseline": 119,
+   "baseline": 100,
    "recent": 0,
    "last": "2026-08-30",
    "rows": 16204,
    "since": "2026-09-13"
   },
-  "stockhouse.com": {
+  "themarysue.com": {
    "why": "dark",
-   "baseline": 122,
+   "baseline": 126,
    "recent": 0,
-   "last": "2026-07-28",
-   "rows": 12208,
-   "since": "2026-09-13"
+   "last": "2026-09-14",
+   "rows": 33668,
+   "since": "2026-09-28"
   },
   "theweek.in": {
    "why": "dark",
-   "baseline": 131,
+   "baseline": 105,
    "recent": 0,
    "last": "2026-08-25",
    "rows": 89857,
@@ -219,7 +147,7 @@
   },
   "tribunnews.com": {
    "why": "dark",
-   "baseline": 255,
+   "baseline": 203,
    "recent": 0,
    "last": "2026-09-02",
    "rows": 10202,
@@ -227,23 +155,23 @@
   },
   "tvguide.co.uk": {
    "why": "thinning",
-   "baseline": 2253,
-   "recent": 28,
-   "last": "2026-09-20",
-   "rows": 1956802,
+   "baseline": 680,
+   "recent": 64,
+   "last": "2026-09-28",
+   "rows": 1956873,
    "since": "2026-09-13"
   },
   "unitaid.eu": {
    "why": "dark",
-   "baseline": 1671,
+   "baseline": 835,
    "recent": 0,
    "last": "2026-08-02",
    "rows": 25148,
    "since": "2026-09-13"
   },
   "upi.com": {
-   "why": "thinning",
-   "baseline": 286,
+   "why": "dark",
+   "baseline": 245,
    "recent": 0,
    "last": "2026-09-08",
    "rows": 102258,

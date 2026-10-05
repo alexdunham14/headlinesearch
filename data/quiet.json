@@ -1,113 +1,105 @@
 {
- "day": "2026-09-28",
+ "day": "2026-10-05",
  "sites": {
-  "albawaba.com": {
-   "why": "dark",
-   "baseline": 104,
-   "recent": 0,
-   "last": "2026-09-13",
-   "rows": 72384,
-   "since": "2026-09-28"
-  },
   "bangkokpost.com": {
    "why": "dark",
-   "baseline": 158,
+   "baseline": 138,
    "recent": 0,
    "last": "2026-08-25",
    "rows": 151070,
    "since": "2026-09-13"
   },
-  "benzinga.com": {
-   "why": "dark",
-   "baseline": 186,
-   "recent": 0,
-   "last": "2026-08-06",
-   "rows": 342285,
-   "since": "2026-09-13"
-  },
   "boerse-social.com": {
    "why": "thinning",
-   "baseline": 505,
-   "recent": 8,
-   "last": "2026-09-27",
-   "rows": 7332,
+   "baseline": 404,
+   "recent": 12,
+   "last": "2026-10-04",
+   "rows": 7339,
    "since": "2026-09-14"
   },
   "bssnews.net": {
-   "why": "thinning",
-   "baseline": 698,
-   "recent": 108,
+   "why": "dark",
+   "baseline": 640,
+   "recent": 0,
    "last": "2026-09-15",
    "rows": 158686,
    "since": "2026-09-28"
   },
-  "chelmsfordweeklynews.co.uk": {
-   "why": "dark",
-   "baseline": 124,
-   "recent": 0,
-   "last": "2026-08-14",
-   "rows": 115042,
-   "since": "2026-09-13"
+  "cnn.com": {
+   "why": "thinning",
+   "baseline": 668,
+   "recent": 22,
+   "last": "2026-10-01",
+   "rows": 302062,
+   "since": "2026-10-05"
   },
-  "digitaltrends.com": {
-   "why": "dark",
-   "baseline": 109,
-   "recent": 0,
-   "last": "2026-09-03",
-   "rows": 42891,
-   "since": "2026-09-21"
+  "dailyridge.com": {
+   "why": "thinning",
+   "baseline": 288,
+   "recent": 57,
+   "last": "2026-10-05",
+   "rows": 19481,
+   "since": "2026-10-05"
   },
   "f4wonline.com": {
-   "why": "thinning",
-   "baseline": 209,
-   "recent": 40,
+   "why": "dark",
+   "baseline": 192,
+   "recent": 0,
    "last": "2026-09-18",
    "rows": 34794,
    "since": "2026-09-28"
   },
   "fandompost.com": {
    "why": "dark",
-   "baseline": 138,
+   "baseline": 112,
    "recent": 0,
    "last": "2026-09-02",
    "rows": 50583,
    "since": "2026-09-21"
   },
-  "indianexpress.com": {
+  "fundsforngos.org": {
+   "why": "dark",
+   "baseline": 241,
+   "recent": 0,
+   "last": "2026-09-16",
+   "rows": 24989,
+   "since": "2026-10-05"
+  },
+  "heraldgoa.in": {
    "why": "dark",
    "baseline": 170,
-   "recent": 0,
-   "last": "2026-07-31",
-   "rows": 484102,
-   "since": "2026-09-13"
-  },
-  "itnewsonline.com": {
-   "why": "dark",
-   "baseline": 113,
-   "recent": 0,
-   "last": "2026-08-10",
-   "rows": 131433,
-   "since": "2026-09-13"
+   "recent": 10,
+   "last": "2026-09-21",
+   "rows": 15885,
+   "since": "2026-10-05"
   },
   "keralakaumudi.com": {
    "why": "dark",
-   "baseline": 145,
+   "baseline": 125,
    "recent": 0,
    "last": "2026-09-03",
    "rows": 6014,
    "since": "2026-09-14"
   },
-  "newkerala.com": {
+  "leaderpost.com": {
    "why": "thinning",
-   "baseline": 763,
-   "recent": 22,
+   "baseline": 344,
+   "recent": 45,
+   "last": "2026-10-05",
+   "rows": 66201,
+   "since": "2026-10-05"
+  },
+  "newkerala.com": {
+   "why": "dark",
+   "baseline": 403,
+   "recent": 0,
    "last": "2026-09-17",
    "rows": 245592,
    "since": "2026-09-13"
   },
   "news.am": {
    "why": "dark",
-   "baseline": 197,
+   "baseline": 147,
    "recent": 0,
    "last": "2026-09-10",
    "rows": 93926,
@@ -115,67 +107,51 @@
   },
   "proactiveinvestors.co.uk": {
    "why": "dark",
-   "baseline": 140,
+   "baseline": 121,
    "recent": 0,
    "last": "2026-09-12",
    "rows": 61702,
    "since": "2026-09-28"
   },
-  "semissourian.com": {
-   "why": "dark",
-   "baseline": 100,
-   "recent": 0,
-   "last": "2026-08-30",
-   "rows": 16204,
-   "since": "2026-09-13"
-  },
-  "themarysue.com": {
-   "why": "dark",
-   "baseline": 126,
-   "recent": 0,
-   "last": "2026-09-14",
-   "rows": 33668,
-   "since": "2026-09-28"
-  },
-  "theweek.in": {
-   "why": "dark",
-   "baseline": 105,
-   "recent": 0,
-   "last": "2026-08-25",
-   "rows": 89857,
-   "since": "2026-09-13"
+  "thestarphoenix.com": {
+   "why": "thinning",
+   "baseline": 299,
+   "recent": 52,
+   "last": "2026-10-04",
+   "rows": 39264,
+   "since": "2026-10-05"
   },
   "tribunnews.com": {
    "why": "dark",
-   "baseline": 203,
+   "baseline": 150,
    "recent": 0,
    "last": "2026-09-02",
    "rows": 10202,
    "since": "2026-09-13"
   },
-  "tvguide.co.uk": {
-   "why": "thinning",
-   "baseline": 680,
-   "recent": 64,
-   "last": "2026-09-28",
-   "rows": 1956873,
-   "since": "2026-09-13"
-  },
-  "unitaid.eu": {
-   "why": "dark",
-   "baseline": 835,
-   "recent": 0,
-   "last": "2026-08-02",
-   "rows": 25148,
-   "since": "2026-09-13"
-  },
   "upi.com": {
    "why": "dark",
-   "baseline": 245,
+   "baseline": 204,
    "recent": 0,
    "last": "2026-09-08",
    "rows": 102258,
    "since": "2026-09-14"
+  },
+  "webpronews.com": {
+   "why": "dark",
+   "baseline": 240,
+   "recent": 0,
+   "last": "2026-09-17",
+   "rows": 32496,
+   "since": "2026-10-05"
+  },
+  "yahoo.com": {
+   "why": "thinning",
+   "baseline": 7025,
+   "recent": 994,
+   "last": "2026-10-05",
+   "rows": 6433118,
+   "since": "2026-10-05"
   }
  }
 }

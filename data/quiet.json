@@ -1,65 +1,49 @@
 {
- "day": "2026-10-05",
+ "day": "2026-10-12",
  "sites": {
-  "bangkokpost.com": {
-   "why": "dark",
-   "baseline": 138,
-   "recent": 0,
-   "last": "2026-08-25",
-   "rows": 151070,
-   "since": "2026-09-13"
-  },
   "boerse-social.com": {
    "why": "thinning",
-   "baseline": 404,
-   "recent": 12,
-   "last": "2026-10-04",
-   "rows": 7339,
+   "baseline": 339,
+   "recent": 6,
+   "last": "2026-10-11",
+   "rows": 7344,
    "since": "2026-09-14"
   },
   "bssnews.net": {
    "why": "dark",
-   "baseline": 640,
+   "baseline": 552,
    "recent": 0,
    "last": "2026-09-15",
    "rows": 158686,
    "since": "2026-09-28"
   },
+  "castanetkamloops.net": {
+   "why": "dark",
+   "baseline": 447,
+   "recent": 0,
+   "last": "2026-09-23",
+   "rows": 76158,
+   "since": "2026-10-12"
+  },
   "cnn.com": {
    "why": "thinning",
-   "baseline": 668,
-   "recent": 22,
-   "last": "2026-10-01",
-   "rows": 302062,
-   "since": "2026-10-05"
-  },
-  "dailyridge.com": {
-   "why": "thinning",
-   "baseline": 288,
-   "recent": 57,
-   "last": "2026-10-05",
-   "rows": 19481,
+   "baseline": 578,
+   "recent": 4,
+   "last": "2026-10-08",
+   "rows": 302064,
    "since": "2026-10-05"
   },
   "f4wonline.com": {
    "why": "dark",
-   "baseline": 192,
+   "baseline": 164,
    "recent": 0,
    "last": "2026-09-18",
    "rows": 34794,
    "since": "2026-09-28"
   },
-  "fandompost.com": {
-   "why": "dark",
-   "baseline": 112,
-   "recent": 0,
-   "last": "2026-09-02",
-   "rows": 50583,
-   "since": "2026-09-21"
-  },
   "fundsforngos.org": {
    "why": "dark",
-   "baseline": 241,
+   "baseline": 197,
    "recent": 0,
    "last": "2026-09-16",
    "rows": 24989,
@@ -67,15 +51,15 @@
   },
   "heraldgoa.in": {
    "why": "dark",
-   "baseline": 170,
-   "recent": 10,
+   "baseline": 148,
+   "recent": 0,
    "last": "2026-09-21",
    "rows": 15885,
    "since": "2026-10-05"
   },
   "keralakaumudi.com": {
    "why": "dark",
-   "baseline": 125,
+   "baseline": 109,
    "recent": 0,
    "last": "2026-09-03",
    "rows": 6014,
@@ -83,55 +67,63 @@
   },
   "leaderpost.com": {
    "why": "thinning",
-   "baseline": 344,
-   "recent": 45,
-   "last": "2026-10-05",
-   "rows": 66201,
+   "baseline": 300,
+   "recent": 26,
+   "last": "2026-10-11",
+   "rows": 66228,
    "since": "2026-10-05"
   },
-  "newkerala.com": {
+  "local10.com": {
    "why": "dark",
-   "baseline": 403,
+   "baseline": 251,
    "recent": 0,
-   "last": "2026-09-17",
-   "rows": 245592,
-   "since": "2026-09-13"
+   "last": "2026-09-24",
+   "rows": 137391,
+   "since": "2026-10-12"
   },
   "news.am": {
    "why": "dark",
-   "baseline": 147,
+   "baseline": 126,
    "recent": 0,
    "last": "2026-09-10",
    "rows": 93926,
    "since": "2026-09-21"
   },
-  "proactiveinvestors.co.uk": {
-   "why": "dark",
-   "baseline": 121,
-   "recent": 0,
-   "last": "2026-09-12",
-   "rows": 61702,
-   "since": "2026-09-28"
+  "scmp.com": {
+   "why": "thinning",
+   "baseline": 557,
+   "recent": 2,
+   "last": "2026-10-10",
+   "rows": 162341,
+   "since": "2026-10-12"
   },
   "thestarphoenix.com": {
    "why": "thinning",
-   "baseline": 299,
-   "recent": 52,
-   "last": "2026-10-04",
-   "rows": 39264,
+   "baseline": 264,
+   "recent": 33,
+   "last": "2026-10-11",
+   "rows": 39294,
    "since": "2026-10-05"
   },
   "tribunnews.com": {
    "why": "dark",
-   "baseline": 150,
+   "baseline": 106,
    "recent": 0,
    "last": "2026-09-02",
    "rows": 10202,
    "since": "2026-09-13"
   },
+  "unionleader.com": {
+   "why": "thinning",
+   "baseline": 260,
+   "recent": 8,
+   "last": "2026-10-06",
+   "rows": 100133,
+   "since": "2026-10-12"
+  },
   "upi.com": {
    "why": "dark",
-   "baseline": 204,
+   "baseline": 161,
    "recent": 0,
    "last": "2026-09-08",
    "rows": 102258,
@@ -139,7 +131,7 @@
   },
   "webpronews.com": {
    "why": "dark",
-   "baseline": 240,
+   "baseline": 180,
    "recent": 0,
    "last": "2026-09-17",
    "rows": 32496,
@@ -147,10 +139,10 @@
   },
   "yahoo.com": {
    "why": "thinning",
-   "baseline": 7025,
-   "recent": 994,
-   "last": "2026-10-05",
-   "rows": 6433118,
+   "baseline": 6261,
+   "recent": 132,
+   "last": "2026-10-12",
+   "rows": 6433263,
    "since": "2026-10-05"
   }
  }

@@ -1,14 +1,14 @@
-Week of 2026-10-19: 6 newly quiet, 21 quiet in all, 3 recovered.
+Week of 2026-10-26: 6 newly quiet, 22 quiet in all, 5 recovered.
 
 | site | why | was a week | last two weeks | last day | rows |
 |---|---|---|---|---|---|
-| globalsecurity.org | dark | 519 | 0 | 2026-10-01 | 149333 |
-| comingsoon.net | thinning | 242 | 24 | 2026-10-16 | 59560 |
-| propakistani.pk | dark | 180 | 0 | 2026-10-01 | 85555 |
-| cochranetimespost.ca | dark | 126 | 0 | 2026-10-03 | 50697 |
-| midnorthmonitor.com | dark | 125 | 0 | 2026-10-03 | 50266 |
-| justjared.com | dark | 115 | 0 | 2026-09-29 | 612684 |
+| tribuneonlineng.com | thinning | 644 | 88 | 2026-10-14 | 167408 |
+| en.tempo.co | dark | 277 | 0 | 2026-10-11 | 48391 |
+| superherohype.com | dark | 174 | 0 | 2026-10-09 | 20128 |
+| qatarliving.com | dark | 154 | 0 | 2026-10-11 | 9440 |
+| reviewjournal.com | dark | 138 | 0 | 2026-10-06 | 40347 |
+| paultan.org | dark | 116 | 0 | 2026-10-08 | 35204 |
 
-Recovered: keralakaumudi.com, news.am, tribunnews.com
+Recovered: comingsoon.net, heraldgoa.in, propakistani.pk, thestarphoenix.com, upi.com
 
 From the weekly snapshots of newsheadlinesearch.com/api/sources; scripts/quiet.py explains the tests.

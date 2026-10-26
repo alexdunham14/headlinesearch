@@ -1,17 +1,17 @@
 {
- "day": "2026-10-19",
+ "day": "2026-10-26",
  "sites": {
   "boerse-social.com": {
    "why": "thinning",
-   "baseline": 292,
-   "recent": 6,
-   "last": "2026-10-18",
-   "rows": 7351,
+   "baseline": 256,
+   "recent": 12,
+   "last": "2026-10-25",
+   "rows": 7367,
    "since": "2026-09-14"
   },
   "bssnews.net": {
    "why": "dark",
-   "baseline": 459,
+   "baseline": 366,
    "recent": 0,
    "last": "2026-09-15",
    "rows": 158686,
@@ -19,7 +19,7 @@
   },
   "castanetkamloops.net": {
    "why": "dark",
-   "baseline": 379,
+   "baseline": 309,
    "recent": 0,
    "last": "2026-09-23",
    "rows": 76158,
@@ -27,31 +27,31 @@
   },
   "cnn.com": {
    "why": "thinning",
-   "baseline": 490,
+   "baseline": 400,
    "recent": 4,
-   "last": "2026-10-19",
-   "rows": 302070,
+   "last": "2026-10-22",
+   "rows": 302071,
    "since": "2026-10-05"
   },
   "cochranetimespost.ca": {
    "why": "dark",
-   "baseline": 126,
+   "baseline": 108,
    "recent": 0,
    "last": "2026-10-03",
    "rows": 50697,
    "since": "2026-10-19"
   },
-  "comingsoon.net": {
-   "why": "thinning",
-   "baseline": 242,
-   "recent": 24,
-   "last": "2026-10-16",
-   "rows": 59560,
-   "since": "2026-10-19"
+  "en.tempo.co": {
+   "why": "dark",
+   "baseline": 277,
+   "recent": 0,
+   "last": "2026-10-11",
+   "rows": 48391,
+   "since": "2026-10-26"
   },
   "f4wonline.com": {
    "why": "dark",
-   "baseline": 136,
+   "baseline": 107,
    "recent": 0,
    "last": "2026-09-18",
    "rows": 34794,
@@ -59,7 +59,7 @@
   },
   "fundsforngos.org": {
    "why": "dark",
-   "baseline": 166,
+   "baseline": 118,
    "recent": 0,
    "last": "2026-09-16",
    "rows": 24989,
@@ -67,19 +67,11 @@
   },
   "globalsecurity.org": {
    "why": "dark",
-   "baseline": 519,
+   "baseline": 441,
    "recent": 0,
    "last": "2026-10-01",
    "rows": 149333,
    "since": "2026-10-19"
-  },
-  "heraldgoa.in": {
-   "why": "dark",
-   "baseline": 127,
-   "recent": 0,
-   "last": "2026-09-21",
-   "rows": 15885,
-   "since": "2026-10-05"
   },
   "justjared.com": {
    "why": "dark",
@@ -91,15 +83,15 @@
   },
   "leaderpost.com": {
    "why": "thinning",
-   "baseline": 255,
-   "recent": 28,
-   "last": "2026-10-19",
-   "rows": 66258,
+   "baseline": 218,
+   "recent": 30,
+   "last": "2026-10-25",
+   "rows": 66289,
    "since": "2026-10-05"
   },
   "local10.com": {
    "why": "dark",
-   "baseline": 215,
+   "baseline": 175,
    "recent": 0,
    "last": "2026-09-24",
    "rows": 137391,
@@ -107,55 +99,71 @@
   },
   "midnorthmonitor.com": {
    "why": "dark",
-   "baseline": 125,
+   "baseline": 107,
    "recent": 0,
    "last": "2026-10-03",
    "rows": 50266,
    "since": "2026-10-19"
   },
-  "propakistani.pk": {
+  "paultan.org": {
    "why": "dark",
-   "baseline": 180,
+   "baseline": 116,
    "recent": 0,
-   "last": "2026-10-01",
-   "rows": 85555,
-   "since": "2026-10-19"
+   "last": "2026-10-08",
+   "rows": 35204,
+   "since": "2026-10-26"
+  },
+  "qatarliving.com": {
+   "why": "dark",
+   "baseline": 154,
+   "recent": 0,
+   "last": "2026-10-11",
+   "rows": 9440,
+   "since": "2026-10-26"
+  },
+  "reviewjournal.com": {
+   "why": "dark",
+   "baseline": 138,
+   "recent": 0,
+   "last": "2026-10-06",
+   "rows": 40347,
+   "since": "2026-10-26"
   },
   "scmp.com": {
    "why": "thinning",
-   "baseline": 485,
+   "baseline": 414,
    "recent": 2,
-   "last": "2026-10-18",
-   "rows": 162344,
+   "last": "2026-10-21",
+   "rows": 162345,
    "since": "2026-10-12"
   },
-  "thestarphoenix.com": {
+  "superherohype.com": {
+   "why": "dark",
+   "baseline": 174,
+   "recent": 0,
+   "last": "2026-10-09",
+   "rows": 20128,
+   "since": "2026-10-26"
+  },
+  "tribuneonlineng.com": {
    "why": "thinning",
-   "baseline": 227,
-   "recent": 30,
-   "last": "2026-10-19",
-   "rows": 39325,
-   "since": "2026-10-05"
+   "baseline": 644,
+   "recent": 88,
+   "last": "2026-10-14",
+   "rows": 167408,
+   "since": "2026-10-26"
   },
   "unionleader.com": {
-   "why": "thinning",
-   "baseline": 231,
-   "recent": 7,
+   "why": "dark",
+   "baseline": 198,
+   "recent": 0,
    "last": "2026-10-06",
    "rows": 100133,
    "since": "2026-10-12"
   },
-  "upi.com": {
-   "why": "dark",
-   "baseline": 121,
-   "recent": 0,
-   "last": "2026-09-08",
-   "rows": 102258,
-   "since": "2026-09-14"
-  },
   "webpronews.com": {
    "why": "dark",
-   "baseline": 144,
+   "baseline": 120,
    "recent": 0,
    "last": "2026-09-17",
    "rows": 32496,
@@ -163,10 +171,10 @@
   },
   "yahoo.com": {
    "why": "thinning",
-   "baseline": 5240,
-   "recent": 144,
-   "last": "2026-10-19",
-   "rows": 6433405,
+   "baseline": 4279,
+   "recent": 139,
+   "last": "2026-10-26",
+   "rows": 6433541,
    "since": "2026-10-05"
   }
  }

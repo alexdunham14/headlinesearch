@@ -80,7 +80,10 @@ ALTER TABLE unified.sources ADD COLUMN IF NOT EXISTS platform LowCardinality(Str
 
 -- Staging, truncated around use: every feed and blog row from its start
 -- date, one per URL, filtered (stage); one day's rows with their keys
--- (day); the seven days before it (lookback).
+-- (day); the seven days before it (lookback). stage is on disk: it holds
+-- every collected row, and ClickHouse's live memory limit falls as memory
+-- fills, which is how a Memory table of it came to fail the build on 4 GB
+-- (sessions/2026-10-31). An existing Memory table has to be dropped once.
 CREATE TABLE IF NOT EXISTS unified.stage (
   ts       DateTime('UTC'),
   src      String,
@@ -89,7 +92,8 @@ CREATE TABLE IF NOT EXISTS unified.stage (
   url      String,
   title    String
 )
-ENGINE = Memory;
+ENGINE = MergeTree
+ORDER BY (src, ts);
 
 CREATE TABLE IF NOT EXISTS unified.day (
   ts       DateTime('UTC'),

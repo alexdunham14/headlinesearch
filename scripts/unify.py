@@ -27,11 +27,18 @@ through a shadow table and REPLACE PARTITION:
   - the last SETTLE_DAYS days and today, always: a feed row's "GDELT has
     this URL" mark looks seven days ahead, and GDELT's files arrive up to a
     day late.
+Most runs look for changes only in the last RECENT_DAYS days. About once a
+day (FULL_EVERY_HOURS, by the stamp file beside the lock) a full run looks at
+every day. Posts turn up dated weeks back every day, and each would otherwise
+rebuild eight days, every hour; so a post older than RECENT_DAYS can reach the
+table up to a day late, its flags with it, and a failed or skipped full run is
+retried the next hour.
 A day's flags come from that day's rows, windowed as scripts/copyflag.py's
 ingest_select does, and the latest sighting of each story in the seven days
 before, from the table itself (and from default.headlines before START).
 
-  scripts/unify.py run                 what the timer runs (server/unify.timer)
+  scripts/unify.py run [--full]        what the timer runs (server/unify.timer);
+                                       --full looks at every day now
   scripts/unify.py build --from DAY    rebuild every day from DAY (e.g. after
                                        changing a filter or the labels)
   scripts/unify.py check               the tests: GDELT's copy_news against its
@@ -64,7 +71,10 @@ BLOGS_START = dt.date(2026, 9, 1)
 FEED_MAX_LAG_DAYS = 3
 SETTLE_DAYS = 3
 WINDOW = copyflag.WINDOW_DAYS
+RECENT_DAYS = 7
+FULL_EVERY_HOURS = 23.5  # under 24: with an hourly timer, the same hour each day
 LOCK = os.environ.get("UNIFY_LOCK", "/tmp/headlinesearch-unify.lock")
+FULL_STAMP = LOCK + ".full"
 
 # The BBC sections GDELT itself records (bbc.com and bbc.co.uk, August and
 # September 2026); every other first path segment of a BBC URL is a World
@@ -245,11 +255,26 @@ def counts(sql):
     return out
 
 
-def dirty_days(today):
+def full_due():
+    try:
+        return time.time() - os.path.getmtime(FULL_STAMP) >= FULL_EVERY_HOURS * 3600
+    except OSError:
+        return True
+
+
+def mark_full(started):
+    with open(FULL_STAMP, "a"):
+        pass
+    os.utime(FULL_STAMP, (started, started))
+
+
+def dirty_days(today, full):
     want = counts(f"SELECT toDate(ts) AS d, 'gdelt', count() FROM default.headlines WHERE ts >= {lit(START)} GROUP BY d")
     want.update(counts("SELECT toDate(ts) AS d, src, count() FROM unified.stage GROUP BY d, src"))
     have = counts("SELECT toDate(ts) AS d, src, count() FROM unified.headlines GROUP BY d, src")
     changed = {dt.date.fromisoformat(d) for (d, s) in set(want) | set(have) if want.get((d, s), 0) != have.get((d, s), 0)}
+    if not full:
+        changed = {d for d in changed if d >= today - dt.timedelta(days=RECENT_DAYS)}
     days = set()
     for d in changed:
         days.update(d + dt.timedelta(days=k) for k in range(WINDOW + 1))
@@ -307,7 +332,7 @@ FROM (
            {lag.format(p='src, key')} AS oa, {lag.format(p='src, key, domain')} AS od,
            {lag.format(p='news, key')} AS na, {lag.format(p='news, key, domain')} AS nd
     FROM (SELECT *, src != 'blogs' AND copy_news != 255 AS news FROM unified.headlines)))
-WHERE ts >= {lo} FORMAT TSV""", HEAVY).split()
+WHERE ts >= {lo} FORMAT TSV""", {**HEAVY, "max_memory_usage": 4000000000}).split()
     print(f"rows from {START + dt.timedelta(days=WINDOW)}: {r[0]}; own copy differing (feeds, blogs): {r[1]}; "
           f"blog copy_news differing: {r[2]}; news copy_news differing: {r[3]}")
 
@@ -324,7 +349,8 @@ def ingest_running():
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("run")
+    p = sub.add_parser("run")
+    p.add_argument("--full", action="store_true", help="look for changes on every day now")
     p = sub.add_parser("build")
     p.add_argument("--from", dest="day_from", required=True, help="YYYY-MM-DD")
     sub.add_parser("check")
@@ -345,15 +371,23 @@ def main():
     schema()
     today = dt.datetime.now(dt.timezone.utc).date()
     t = time.time()
-    stage()
-    log("staged: " + ch("SELECT src, count() FROM unified.stage GROUP BY src ORDER BY src FORMAT TSV").replace("\t", " ").replace("\n", ", ").rstrip(", ")
-        + f" ({time.time() - t:.0f}s)")
-    if a.cmd == "build":
-        first = max(dt.date.fromisoformat(a.day_from), START)
-        build([first + dt.timedelta(days=k) for k in range((today - first).days + 1)], f"from {first}")
-    else:
-        days, changed = dirty_days(today)
-        build(days, f"changed: {', '.join(str(d) for d in changed) or 'none'}; and the last {SETTLE_DAYS} days")
+    try:
+        stage()
+        log("staged: " + ch("SELECT src, count() FROM unified.stage GROUP BY src ORDER BY src FORMAT TSV").replace("\t", " ").replace("\n", ", ").rstrip(", ")
+            + f" ({time.time() - t:.0f}s)")
+        if a.cmd == "build":
+            first = max(dt.date.fromisoformat(a.day_from), START)
+            build([first + dt.timedelta(days=k) for k in range((today - first).days + 1)], f"from {first}")
+        else:
+            full = a.full or full_due()
+            days, changed = dirty_days(today, full)
+            build(days, f"{'full' if full else 'recent'}; changed: {', '.join(str(d) for d in changed) or 'none'}; and the last {SETTLE_DAYS} days")
+            if full:
+                mark_full(t)
+    finally:
+        # Nothing reads these between runs; day and lookback are in memory.
+        for table in ("stage", "day", "lookback"):
+            ch(f"TRUNCATE TABLE unified.{table}")
     return 0
 
 

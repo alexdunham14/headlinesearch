@@ -511,8 +511,10 @@ before). The design and the reasons are in the root repo's
   `default.headlines`, `collect.headlines` and `blogs.posts`, changing none
   of them, hourly at :35 (`server/unify.timer`, installed by
   `server/setup.sh` step 9). A full build is 1.4 minutes (15
-  days, 1.7 million rows); an hourly run rebuilds the days that changed and
-  the last three. `DROP DATABASE unified` undoes it.
+  days, 1.7 million rows); an hourly run rebuilds the days that changed in the
+  last week and the last three, and about once a day a run looks at every day,
+  so a post dated more than a week back can arrive up to a day late.
+  `DROP DATABASE unified` undoes it.
 - **What goes in.** Feeds: one row per URL, the news sitemap's title before
   the feed's, dated by the item but never after it was first seen, and left
   out when first seen more than three days after its date; English only (BBC
@@ -620,8 +622,8 @@ without a tunnel token.) Anything on the internet can reach the tunnel's
 hostname; the `search` user's password, its read-only grants and its
 quota are the gate, as they were with the open port.
 
-The database runs on an AWS Lightsail instance (`headlinesearch-db`, 2 vCPU,
-4 GB, 80 GB, Debian 12, us-east-1); `ssh headlinesearch-db` reaches it, as
+The database runs on an AWS Lightsail instance (`headlinesearch-db-8gb` since 2026-10-31, the `ssh headlinesearch-db` alias unchanged; 2 vCPU,
+8 GB, 160 GB, Debian 12, us-east-1); `ssh headlinesearch-db` reaches it, as
 `admin` with a key, and the cloud firewall admits ssh from one address.
 
 ## Setting up the server

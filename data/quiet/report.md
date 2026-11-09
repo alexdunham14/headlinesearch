@@ -1,13 +1,12 @@
-Week of 2026-11-02: 5 newly quiet, 21 quiet in all, 6 recovered.
+Week of 2026-11-09: 4 newly quiet, 21 quiet in all, 4 recovered.
 
 | site | why | was a week | last two weeks | last day | rows |
 |---|---|---|---|---|---|
-| roarmag.org | thinning | 318 | 51 | 2026-10-21 | 24763 |
-| eng.kavkaz-uzel.eu | dark | 161 | 0 | 2026-10-14 | 9144 |
-| comingsoon.net | dark | 156 | 0 | 2026-10-16 | 59560 |
-| curacaochronicle.com | dark | 126 | 0 | 2026-10-16 | 10379 |
-| africa.com | dark | 118 | 0 | 2026-10-17 | 25641 |
+| sunjournal.com | dark | 156 | 0 | 2026-10-21 | 110865 |
+| centralmaine.com | dark | 137 | 0 | 2026-10-21 | 99270 |
+| virginislandsnewsonline.com | dark | 119 | 0 | 2026-10-25 | 38286 |
+| jamaica-star.com | dark | 102 | 0 | 2026-10-23 | 41640 |
 
-Recovered: boerse-social.com, cochranetimespost.ca, f4wonline.com, fundsforngos.org, leaderpost.com, midnorthmonitor.com
+Recovered: local10.com, paultan.org, reviewjournal.com, webpronews.com
 
 From the weekly snapshots of newsheadlinesearch.com/api/sources; scripts/quiet.py explains the tests.

@@ -1,9 +1,9 @@
 {
- "day": "2026-11-02",
+ "day": "2026-11-09",
  "sites": {
   "africa.com": {
    "why": "dark",
-   "baseline": 118,
+   "baseline": 107,
    "recent": 0,
    "last": "2026-10-17",
    "rows": 25641,
@@ -11,7 +11,7 @@
   },
   "bssnews.net": {
    "why": "dark",
-   "baseline": 280,
+   "baseline": 183,
    "recent": 0,
    "last": "2026-09-15",
    "rows": 158686,
@@ -19,23 +19,31 @@
   },
   "castanetkamloops.net": {
    "why": "dark",
-   "baseline": 240,
+   "baseline": 172,
    "recent": 0,
    "last": "2026-09-23",
    "rows": 76158,
    "since": "2026-10-12"
   },
+  "centralmaine.com": {
+   "why": "dark",
+   "baseline": 137,
+   "recent": 0,
+   "last": "2026-10-21",
+   "rows": 99270,
+   "since": "2026-11-09"
+  },
   "cnn.com": {
    "why": "thinning",
-   "baseline": 311,
+   "baseline": 220,
    "recent": 4,
-   "last": "2026-10-29",
-   "rows": 302077,
+   "last": "2026-11-05",
+   "rows": 302080,
    "since": "2026-10-05"
   },
   "comingsoon.net": {
    "why": "dark",
-   "baseline": 156,
+   "baseline": 124,
    "recent": 0,
    "last": "2026-10-16",
    "rows": 59560,
@@ -43,7 +51,7 @@
   },
   "curacaochronicle.com": {
    "why": "dark",
-   "baseline": 126,
+   "baseline": 107,
    "recent": 0,
    "last": "2026-10-16",
    "rows": 10379,
@@ -51,7 +59,7 @@
   },
   "en.tempo.co": {
    "why": "dark",
-   "baseline": 242,
+   "baseline": 199,
    "recent": 0,
    "last": "2026-10-11",
    "rows": 48391,
@@ -59,7 +67,7 @@
   },
   "eng.kavkaz-uzel.eu": {
    "why": "dark",
-   "baseline": 161,
+   "baseline": 138,
    "recent": 0,
    "last": "2026-10-14",
    "rows": 9144,
@@ -67,11 +75,19 @@
   },
   "globalsecurity.org": {
    "why": "dark",
-   "baseline": 430,
+   "baseline": 355,
    "recent": 0,
    "last": "2026-10-01",
    "rows": 149333,
    "since": "2026-10-19"
+  },
+  "jamaica-star.com": {
+   "why": "dark",
+   "baseline": 102,
+   "recent": 0,
+   "last": "2026-10-23",
+   "rows": 41640,
+   "since": "2026-11-09"
   },
   "justjared.com": {
    "why": "dark",
@@ -81,92 +97,76 @@
    "rows": 612684,
    "since": "2026-10-19"
   },
-  "local10.com": {
-   "why": "dark",
-   "baseline": 138,
-   "recent": 0,
-   "last": "2026-09-24",
-   "rows": 137391,
-   "since": "2026-10-12"
-  },
-  "paultan.org": {
-   "why": "dark",
-   "baseline": 104,
-   "recent": 0,
-   "last": "2026-10-08",
-   "rows": 35204,
-   "since": "2026-10-26"
-  },
   "qatarliving.com": {
    "why": "dark",
-   "baseline": 141,
+   "baseline": 108,
    "recent": 0,
    "last": "2026-10-11",
    "rows": 9440,
    "since": "2026-10-26"
   },
-  "reviewjournal.com": {
-   "why": "dark",
-   "baseline": 113,
-   "recent": 0,
-   "last": "2026-10-06",
-   "rows": 40347,
-   "since": "2026-10-26"
-  },
   "roarmag.org": {
-   "why": "thinning",
-   "baseline": 318,
-   "recent": 51,
+   "why": "dark",
+   "baseline": 297,
+   "recent": 0,
    "last": "2026-10-21",
    "rows": 24763,
    "since": "2026-11-02"
   },
   "scmp.com": {
    "why": "thinning",
-   "baseline": 340,
+   "baseline": 266,
    "recent": 5,
-   "last": "2026-11-02",
-   "rows": 162354,
+   "last": "2026-11-07",
+   "rows": 162355,
    "since": "2026-10-12"
+  },
+  "sunjournal.com": {
+   "why": "dark",
+   "baseline": 156,
+   "recent": 0,
+   "last": "2026-10-21",
+   "rows": 110865,
+   "since": "2026-11-09"
   },
   "superherohype.com": {
    "why": "dark",
-   "baseline": 152,
+   "baseline": 126,
    "recent": 0,
    "last": "2026-10-09",
    "rows": 20128,
    "since": "2026-10-26"
   },
   "tribuneonlineng.com": {
-   "why": "dark",
-   "baseline": 574,
-   "recent": 0,
-   "last": "2026-10-14",
-   "rows": 167408,
+   "why": "thinning",
+   "baseline": 496,
+   "recent": 8,
+   "last": "2026-11-08",
+   "rows": 167425,
    "since": "2026-10-26"
   },
   "unionleader.com": {
    "why": "dark",
-   "baseline": 164,
+   "baseline": 129,
    "recent": 0,
    "last": "2026-10-06",
    "rows": 100133,
    "since": "2026-10-12"
   },
-  "webpronews.com": {
+  "virginislandsnewsonline.com": {
    "why": "dark",
-   "baseline": 103,
+   "baseline": 119,
    "recent": 0,
-   "last": "2026-09-17",
-   "rows": 32496,
-   "since": "2026-10-05"
+   "last": "2026-10-25",
+   "rows": 38286,
+   "since": "2026-11-09"
   },
   "yahoo.com": {
    "why": "thinning",
-   "baseline": 3318,
-   "recent": 130,
-   "last": "2026-11-02",
-   "rows": 6433666,
+   "baseline": 2367,
+   "recent": 134,
+   "last": "2026-11-09",
+   "rows": 6433808,
    "since": "2026-10-05"
   }
  }

@@ -1,12 +1,11 @@
-Week of 2026-11-09: 4 newly quiet, 21 quiet in all, 4 recovered.
+Week of 2026-11-16: 3 newly quiet, 16 quiet in all, 8 recovered.
 
 | site | why | was a week | last two weeks | last day | rows |
 |---|---|---|---|---|---|
-| sunjournal.com | dark | 156 | 0 | 2026-10-21 | 110865 |
-| centralmaine.com | dark | 137 | 0 | 2026-10-21 | 99270 |
-| virginislandsnewsonline.com | dark | 119 | 0 | 2026-10-25 | 38286 |
-| jamaica-star.com | dark | 102 | 0 | 2026-10-23 | 41640 |
+| dailytrust.com | dark | 354 | 0 | 2026-11-02 | 73213 |
+| mondaq.com | thinning | 282 | 0 | 2026-11-04 | 134999 |
+| moneytalksnews.com | dark | 106 | 0 | 2026-11-01 | 13038 |
 
-Recovered: local10.com, paultan.org, reviewjournal.com, webpronews.com
+Recovered: africa.com, bssnews.net, cnn.com, curacaochronicle.com, jamaica-star.com, qatarliving.com, scmp.com, unionleader.com
 
 From the weekly snapshots of newsheadlinesearch.com/api/sources; scripts/quiet.py explains the tests.

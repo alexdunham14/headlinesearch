@@ -1,25 +1,9 @@
 {
- "day": "2026-11-09",
+ "day": "2026-11-16",
  "sites": {
-  "africa.com": {
-   "why": "dark",
-   "baseline": 107,
-   "recent": 0,
-   "last": "2026-10-17",
-   "rows": 25641,
-   "since": "2026-11-02"
-  },
-  "bssnews.net": {
-   "why": "dark",
-   "baseline": 183,
-   "recent": 0,
-   "last": "2026-09-15",
-   "rows": 158686,
-   "since": "2026-09-28"
-  },
   "castanetkamloops.net": {
    "why": "dark",
-   "baseline": 172,
+   "baseline": 115,
    "recent": 0,
    "last": "2026-09-23",
    "rows": 76158,
@@ -27,19 +11,11 @@
   },
   "centralmaine.com": {
    "why": "dark",
-   "baseline": 137,
+   "baseline": 116,
    "recent": 0,
    "last": "2026-10-21",
    "rows": 99270,
    "since": "2026-11-09"
-  },
-  "cnn.com": {
-   "why": "thinning",
-   "baseline": 220,
-   "recent": 4,
-   "last": "2026-11-05",
-   "rows": 302080,
-   "since": "2026-10-05"
   },
   "comingsoon.net": {
    "why": "dark",
@@ -49,17 +25,17 @@
    "rows": 59560,
    "since": "2026-11-02"
   },
-  "curacaochronicle.com": {
+  "dailytrust.com": {
    "why": "dark",
-   "baseline": 107,
+   "baseline": 354,
    "recent": 0,
-   "last": "2026-10-16",
-   "rows": 10379,
-   "since": "2026-11-02"
+   "last": "2026-11-02",
+   "rows": 73213,
+   "since": "2026-11-16"
   },
   "en.tempo.co": {
    "why": "dark",
-   "baseline": 199,
+   "baseline": 162,
    "recent": 0,
    "last": "2026-10-11",
    "rows": 48391,
@@ -67,7 +43,7 @@
   },
   "eng.kavkaz-uzel.eu": {
    "why": "dark",
-   "baseline": 138,
+   "baseline": 116,
    "recent": 0,
    "last": "2026-10-14",
    "rows": 9144,
@@ -75,55 +51,47 @@
   },
   "globalsecurity.org": {
    "why": "dark",
-   "baseline": 355,
+   "baseline": 279,
    "recent": 0,
    "last": "2026-10-01",
    "rows": 149333,
    "since": "2026-10-19"
   },
-  "jamaica-star.com": {
-   "why": "dark",
-   "baseline": 102,
-   "recent": 0,
-   "last": "2026-10-23",
-   "rows": 41640,
-   "since": "2026-11-09"
-  },
   "justjared.com": {
    "why": "dark",
-   "baseline": 115,
+   "baseline": 106,
    "recent": 0,
    "last": "2026-09-29",
    "rows": 612684,
    "since": "2026-10-19"
   },
-  "qatarliving.com": {
-   "why": "dark",
-   "baseline": 108,
+  "mondaq.com": {
+   "why": "thinning",
+   "baseline": 282,
    "recent": 0,
-   "last": "2026-10-11",
-   "rows": 9440,
-   "since": "2026-10-26"
+   "last": "2026-11-04",
+   "rows": 134999,
+   "since": "2026-11-16"
+  },
+  "moneytalksnews.com": {
+   "why": "dark",
+   "baseline": 106,
+   "recent": 0,
+   "last": "2026-11-01",
+   "rows": 13038,
+   "since": "2026-11-16"
   },
   "roarmag.org": {
    "why": "dark",
-   "baseline": 297,
+   "baseline": 257,
    "recent": 0,
    "last": "2026-10-21",
    "rows": 24763,
    "since": "2026-11-02"
   },
-  "scmp.com": {
-   "why": "thinning",
-   "baseline": 266,
-   "recent": 5,
-   "last": "2026-11-07",
-   "rows": 162355,
-   "since": "2026-10-12"
-  },
   "sunjournal.com": {
    "why": "dark",
-   "baseline": 156,
+   "baseline": 134,
    "recent": 0,
    "last": "2026-10-21",
    "rows": 110865,
@@ -131,7 +99,7 @@
   },
   "superherohype.com": {
    "why": "dark",
-   "baseline": 126,
+   "baseline": 101,
    "recent": 0,
    "last": "2026-10-09",
    "rows": 20128,
@@ -139,23 +107,15 @@
   },
   "tribuneonlineng.com": {
    "why": "thinning",
-   "baseline": 496,
+   "baseline": 418,
    "recent": 8,
    "last": "2026-11-08",
    "rows": 167425,
    "since": "2026-10-26"
   },
-  "unionleader.com": {
-   "why": "dark",
-   "baseline": 129,
-   "recent": 0,
-   "last": "2026-10-06",
-   "rows": 100133,
-   "since": "2026-10-12"
-  },
   "virginislandsnewsonline.com": {
    "why": "dark",
-   "baseline": 119,
+   "baseline": 105,
    "recent": 0,
    "last": "2026-10-25",
    "rows": 38286,
@@ -163,10 +123,10 @@
   },
   "yahoo.com": {
    "why": "thinning",
-   "baseline": 2367,
+   "baseline": 1505,
    "recent": 134,
-   "last": "2026-11-09",
-   "rows": 6433808,
+   "last": "2026-11-16",
+   "rows": 6433934,
    "since": "2026-10-05"
   }
  }
